@@ -8,6 +8,16 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
+// only process the deletion for one time expenses
+        if (isset($_GET['delete']) && !empty($_GET['delete'])) {
+            $delete_id = (int)($_GET['delete'] ?? 0);
+            $stmt = $conn->prepare("DELETE FROM expenses WHERE id = ? AND user_id = ?");
+            $stmt->bind_param("ii", $delete_id, $user_id);
+            $stmt->execute();
+            header('Location: view_expenses.php');
+            exit;
+        }
+        
 
 // Default date range for the current month
 $default_start = new DateTime('first day of this month');
@@ -201,7 +211,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             --primary: #1E3A8A;
             --secondary: #15803d;
             --neutral: #FFFFFF;
-            --neutral-accent: #E5E7EB;
+            --neutral-accent:rgb(5, 9, 16);
             --glow: #2DD4BF;
             --warning: #EF4444;
             --dark-bg: #1F2937;
@@ -601,34 +611,6 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
                     <?php endforeach; ?>
                 </tbody>
             </table>
-            <div class="expense-cards">
-                <?php foreach ($all_expenses as $exp): ?>
-                    <div class="expense-card">
-                        <div><strong>Date:</strong> <?php echo htmlspecialchars($exp['date'] ?? 'N/A'); ?></div>
-                        <div><strong>Amount:</strong> $<?php echo htmlspecialchars(number_format($exp['amount'] ?? 0, 2)); ?></div>
-                        <div><strong>Category:</strong> <?php echo htmlspecialchars($exp['category_name'] ?? 'N/A'); ?></div>
-                        <div><strong>Description:</strong> <?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?></div>
-                        <div><strong>Type:</strong> 
-                            <span class="badge <?php echo $exp['type'] === 'One-Time' ? 'one-time' : 'recurring'; ?>">
-                                <?php echo $exp['type'] === 'One-Time' ? '⚫' : '🔄'; ?>
-                                <?php echo htmlspecialchars($exp['type']); ?>
-                            </span>
-                        </div>
-                        <div><strong>Frequency:</strong> <?php echo htmlspecialchars($exp['frequency'] ?? '-'); ?></div>
-                        <div><strong>Payment Method:</strong> <?php echo htmlspecialchars($exp['payment_method'] ?? 'N/A'); ?></div>
-                        <div><strong>Merchant:</strong> <?php echo htmlspecialchars($exp['merchant'] ?? 'N/A'); ?></div>
-                        <div class="actions">
-                            <?php if (isset($exp['is_recurring']) && $exp['is_recurring']): ?>
-                                <a href="#" class="action-btn edit-btn disabled">Edit</a>
-                                <a href="#" class="action-btn delete-btn disabled">Delete</a>
-                            <?php else: ?>
-                                <a href="edit_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn">Edit</a>
-                                <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');">Delete</a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
         <?php else: ?>
             <div class="empty-state">
                 <p>No expenses found for the selected criteria!</p>
@@ -638,16 +620,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
 
         <a href="dashboard.php" class="add-expense-btn">Back to Dashboard</a>
 
-        <?php
-        if (isset($_GET['delete']) && !empty($_GET['delete'])) {
-            $delete_id = (int)($_GET['delete'] ?? 0);
-            $stmt = $conn->prepare("DELETE FROM expenses WHERE id = ? AND user_id = ?");
-            $stmt->bind_param("ii", $delete_id, $user_id);
-            $stmt->execute();
-            header('Location: view_expenses.php');
-            exit;
-        }
-        ?>
+        
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>

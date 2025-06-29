@@ -119,22 +119,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$error_message) {
             if ($is_recurring) {
-                $query = "INSERT INTO recurring_expenses (user_id, category_id, amount, description, start_date, frequency, period, end_date) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $query = "INSERT INTO recurring_expenses (user_id, category_id, amount, payment_method, description, start_date, frequency, period, end_date) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($query);
-                $stmt->bind_param('iidsssis', $user_id, $category_id, $amount, $description, $date, $frequency, $period, $end_date);
+                $stmt->bind_param('iidssssis', $user_id, $category_id, $amount,$payment_method, $description, $date, $frequency, $period, $end_date);
             } else {
                 // Adjust query based on whether receipt_path column exists
                 if ($has_receipt_path) {
-                    $query = "INSERT INTO expenses (user_id, category_id, amount, description, date, receipt_path) 
+                    $query = "INSERT INTO expenses (user_id, category_id, amount, payment_method, description, date, receipt_path) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?)";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param('iidssss', $user_id, $category_id, $amount, $payment_method, $description, $date, $receipt_path);
+                } else {
+                    $query = "INSERT INTO expenses (user_id, category_id, amount, payment_method, description, date) 
                               VALUES (?, ?, ?, ?, ?, ?)";
                     $stmt = $conn->prepare($query);
-                    $stmt->bind_param('iidsss', $user_id, $category_id, $amount, $description, $date, $receipt_path);
-                } else {
-                    $query = "INSERT INTO expenses (user_id, category_id, amount, description, date) 
-                              VALUES (?, ?, ?, ?, ?)";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param('iidss', $user_id, $category_id, $amount, $description, $date);
+                    $stmt->bind_param('iidsss', $user_id, $category_id, $amount, $payment_method, $description, $date);
                 }
             }
 
