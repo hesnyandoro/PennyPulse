@@ -112,6 +112,33 @@ $rec_stmt = $conn->prepare($rec_query);
 $rec_stmt->bind_param($rec_types, ...$rec_params);
 $rec_stmt->execute();
 $recurring_rules = $rec_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+// Fetch recurring expense exceptions for the date range
+$exception_query = $conn->prepare(
+    "SELECT recurring_expense_id, exception_date FROM recurring_expense_exceptions WHERE user_id = ? AND exception_date BETWEEN ? AND ?"
+);
+$start_date_str = $view_start_date->format('Y-m-d');
+$end_date_str = $view_end_date->format('Y-m-d');
+$exception_query->bind_param("iss", $user_id, $start_date_str, $end_date_str);
+$exception_query->execute();
+$exceptions_result = $exception_query->get_result()->fetch_all(MYSQLI_ASSOC);
+
+$exceptions = [];
+foreach ($exceptions_result as $ex) {
+    $exceptions[$ex['recurring_expense_id']][$ex['exception_date']] = true;
+}
+
+// Fetch overrides to prevent duplication
+$override_query = $conn->prepare(
+    "SELECT recurring_expense_id, date FROM expenses WHERE user_id = ? AND is_override = TRUE AND date BETWEEN ? AND ?"
+);
+$override_query->bind_param("iss", $user_id, $start_date_str, $end_date_str);
+$override_query->execute();
+$overrides_result = $override_query->get_result()->fetch_all(MYSQLI_ASSOC);
+
+$overrides = [];
+foreach ($overrides_result as $ov) {
+    $overrides[$ov['recurring_expense_id']][$ov['date']] = true;
+}
 
 $recurring_expenses = [];
 $unique_recurring = [];
@@ -128,31 +155,31 @@ foreach ($recurring_rules as $rule) {
     };
 
     while ($current_date <= $rule_end_date) {
-        $date_key = $current_date->format('Y-m-d') . '_' . ($rule['category_id'] ?? 'N/A');
-        if ($current_date >= $view_start_date && $current_date <= $view_end_date && !isset($unique_recurring[$date_key])) {
-            if (isset($one_time_lookup[$date_key]) && 
-                $one_time_lookup[$date_key]['amount'] == $rule['amount'] && 
-                similar_text($one_time_lookup[$date_key]['description'], $rule['description']) > 70) {
-                $unique_recurring[$date_key] = true;
-            } else {
-                $unique_recurring[$date_key] = true;
-                $recurring_expenses[] = [
-                    'id' => 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd'),
-                    'date' => $current_date->format('Y-m-d'),
-                    'amount' => $rule['amount'],
-                    'category_id' => $rule['category_id'],
-                    'category_name' => $rule['category_name'],
-                    'description' => $rule['description'],
-                    'payment_method' => $rule['payment_method'],
-                    'merchant' => $rule['merchant'] ?? 'N/A',
-                    'is_recurring' => true,
-                    'type' => 'Recurring',
-                    'frequency' => $rule['frequency'],
-                ];
-            }
-        }
+    $current_date_str = $current_date->format('Y-m-d');
+
+    // Skip if an exception or override exists for this date
+    if (isset($exceptions[$rule['id']][$current_date_str]) || isset($overrides[$rule['id']][$current_date_str])) {
         $current_date->add($interval);
+        continue;
     }
+
+    if ($current_date >= $view_start_date && $current_date <= $view_end_date) {
+        $recurring_expenses[] = [
+            'id' => 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd'),
+            'rule_id' => $rule['id'], // Pass the original rule ID
+            'date' => $current_date_str,
+            'amount' => $rule['amount'],
+            'category_name' => $rule['category_name'],
+            'description' => $rule['description'],
+            'payment_method' => $rule['payment_method'],
+            'merchant' => $rule['merchant'] ?? 'N/A',
+            'is_recurring' => true,
+            'type' => 'Recurring',
+            'frequency' => $rule['frequency'],
+        ];
+    }
+    $current_date->add($interval);
+}
 }
 
 $all_expenses = array_merge($all_expenses, $recurring_expenses);
@@ -599,14 +626,14 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
                             <td><?php echo htmlspecialchars($exp['payment_method'] ?? 'N/A'); ?></td>
                             <td><?php echo htmlspecialchars($exp['merchant'] ?? 'N/A'); ?></td>
                             <td>
-                                <?php if (isset($exp['is_recurring']) && $exp['is_recurring']): ?>
-                                    <a href="#" class="action-btn edit-btn disabled">Edit</a>
-                                    <a href="#" class="action-btn delete-btn disabled">Delete</a>
-                                <?php else: ?>
-                                    <a href="edit_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn">Edit</a>
-                                    <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');">Delete</a>
-                                <?php endif; ?>
-                            </td>
+    <?php if (isset($exp['is_recurring']) && $exp['is_recurring']): ?>
+        <a href="edit_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn edit-btn">Edit</a>
+        <a href="delete_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this single instance?');">Delete</a>
+    <?php else: ?>
+        <a href="edit_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn">Edit</a>
+        <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');">Delete</a>
+    <?php endif; ?>
+</td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
