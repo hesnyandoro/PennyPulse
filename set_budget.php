@@ -63,8 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
     $month = $_POST['month'] ?? '';
     $budget_amount = $_POST['budget_amount'] ?? '';
 
-    error_log("Form Data - Category ID: $category_id, Month: $month, Budget Amount: $budget_amount");
-
+    // --- Start: Validation and Processing (Keep this from the original block) ---
     if (empty($category_id) || empty($month) || empty($budget_amount)) {
         error_log("Validation failed: Missing required fields");
         header('Location: set_budget.php?error=invalid');
@@ -80,16 +79,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
     $category_id = (int)$category_id;
     $budget_amount = (float)$budget_amount;
     $month = date('Y-m-01', strtotime($month));
-    error_log("Processed Form Data - Category ID: $category_id, Month: $month, Budget Amount: $budget_amount");
+    // --- End: Validation and Processing ---
 
-    $current_month = date('Y-m-01', strtotime('today')); // May 23, 2025
-    if ($month < $current_month) {
-        $time_filter = 'past';
-    } elseif ($month > $current_month) {
-        $time_filter = 'upcoming';
-    } else {
-        $time_filter = 'active';
-    }
+    // Preserve current filters for the redirect
+    $redirect_params = [
+        'time_filter' => $_GET['time_filter'] ?? 'active',
+        'status_filter' => $_GET['status_filter'] ?? ''
+    ];
 
     // Check for existing budget
     $query = "SELECT id FROM budgets WHERE user_id = ? AND category_id = ? AND month = ?";
@@ -105,7 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
 
     if ($existing_budget) {
         error_log("Budget already exists for user_id: $user_id, category_id: $category_id, month: $month");
-        header("Location: set_budget.php?error=exists&time_filter=$time_filter");
+        $redirect_params['error'] = 'exists';
+        header("Location: set_budget.php?" . http_build_query($redirect_params));
         exit;
     }
 
@@ -120,11 +117,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
     $stmt->bind_param('iisd', $user_id, $category_id, $month, $budget_amount);
     if ($stmt->execute()) {
         error_log("Budget inserted successfully for user_id: $user_id, category_id: $category_id, month: $month");
-        header("Location: set_budget.php?success=1&time_filter=$time_filter");
+        $redirect_params['success'] = '1';
+        header("Location: set_budget.php?" . http_build_query($redirect_params));
         exit;
     } else {
         error_log("Insert Error: " . $stmt->error);
-        header('Location: set_budget.php?error=fail');
+        $redirect_params['error'] = 'fail';
+        header("Location: set_budget.php?" . http_build_query($redirect_params));
         exit;
     }
 }
@@ -283,7 +282,7 @@ foreach ($budgets as &$budget) {
             <?php } ?>
             
             <!-- Budget Form -->
-            <form id="budget-form" method="POST">
+            <form id="budget-form" method="POST" action="set_budget.php?<?php echo http_build_query($_GET); ?>">
                 <div class="bento-grid">
                     <div class="bento-box primary-box">
                         <div class="form-group">
