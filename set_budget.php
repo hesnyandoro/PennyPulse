@@ -1,69 +1,109 @@
 <?php
+error_log("set_budget.php script started.");
+// Start output buffering to prevent header issues
+ob_start();
+
+// Ensure session is started
+session_start();
+
+// Include configuration
 require_once 'config.php';
 
+// Check for user session
 if (!isset($_SESSION['user_id'])) {
     error_log("Session user_id not set, redirecting to login.php");
     header('Location: login.php');
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$user_id = (int)$_SESSION['user_id'];
 error_log("User ID in set_budget.php: $user_id");
 
 $success_message = '';
 $error_message = '';
 
+// Handle success/error messages
 if (isset($_GET['success'])) {
     error_log("Success parameter received: " . $_GET['success']);
-    if ($_GET['success'] === '1') $success_message = 'Budget set successfully!';
-    if ($_GET['success'] === 'deleted') $success_message = 'Budget deleted successfully!';
+    if ($_GET['success'] === '1') {
+        $success_message = 'Budget set successfully!';
+    } elseif ($_GET['success'] === 'deleted') {
+        $success_message = 'Budget deleted successfully!';
+    }
 }
 if (isset($_GET['error'])) {
     error_log("Error parameter received: " . $_GET['error']);
-    if ($_GET['error'] === 'exists') $error_message = 'A budget for this category and month already exists.';
-    if ($_GET['error'] === 'fail') $error_message = 'Failed to set budget. Please try again.';
-    if ($_GET['error'] === 'deletefail') $error_message = 'Failed to delete budget. Please try again.';
-    if ($_GET['error'] === 'invalid') $error_message = 'Invalid input data. Please check your entries.';
+    if ($_GET['error'] === 'exists') {
+        $error_message = 'A budget for this category and month already exists.';
+    } elseif ($_GET['error'] === 'fail') {
+        $error_message = 'Failed to set budget. Please try again.';
+    } elseif ($_GET['error'] === 'deletefail') {
+        $error_message = 'Failed to delete budget. Please try again.';
+    } elseif ($_GET['error'] === 'invalid') {
+        $error_message = 'Invalid input data. Please check your entries.';
+    }
 }
 
 // Fetch user details
 $query = "SELECT username FROM users WHERE id = ?";
 $stmt = $conn->prepare($query);
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$user = $stmt->get_result()->fetch_assoc();
+if (!$stmt) {
+    error_log("Prepare Error (Fetch User): " . $conn->error);
+    $error_message = 'Failed to fetch user data.';
+} else {
+    $stmt->bind_param('i', $user_id);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    if (!$user) {
+        error_log("User not found for user_id: $user_id");
+        header('Location: login.php');
+        exit;
+    }
+}
 
 // Fetch user settings (theme)
 $query = "SELECT theme FROM user_settings WHERE user_id = ?";
 $stmt = $conn->prepare($query);
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$settings_result = $stmt->get_result();
-$settings = $settings_result->fetch_assoc();
-
-if (!$settings) {
-    $query = "INSERT INTO user_settings (user_id, theme) VALUES (?, 'light')";
-    $stmt = $conn->prepare($query);
+if (!$stmt) {
+    error_log("Prepare Error (Fetch Settings): " . $conn->error);
+    $settings = ['theme' => 'light'];
+} else {
     $stmt->bind_param('i', $user_id);
     $stmt->execute();
-    $settings = ['theme' => 'light'];
+    $settings_result = $stmt->get_result();
+    $settings = $settings_result->fetch_assoc();
+
+    if (!$settings) {
+        $query = "INSERT INTO user_settings (user_id, theme) VALUES (?, 'light')";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $settings = ['theme' => 'light'];
+    }
 }
 
 // Fetch categories for the form
 $query = "SELECT id, name FROM categories WHERE user_id = ? OR user_id IS NULL";
 $stmt = $conn->prepare($query);
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+if (!$stmt) {
+    error_log("Prepare Error (Fetch Categories): " . $conn->error);
+    $error_message = 'Failed to fetch categories.';
+    $categories = [];
+} else {
+    $stmt->bind_param('i', $user_id);
+    $stmt->execute();
+    $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    error_log("Fetched Categories: " . json_encode($categories));
+}
 
 // Handle budget creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
-    error_log("Budget form submitted");
+    error_log("POST Data: " . print_r($_POST, true));
     $category_id = $_POST['category_id'] ?? '';
     $month = $_POST['month'] ?? '';
     $budget_amount = $_POST['budget_amount'] ?? '';
 
-    // --- Start: Validation and Processing (Keep this from the original block) ---
+    // Validation
     if (empty($category_id) || empty($month) || empty($budget_amount)) {
         error_log("Validation failed: Missing required fields");
         header('Location: set_budget.php?error=invalid');
@@ -76,12 +116,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
         exit;
     }
 
+    if (!strtotime($month)) {
+        error_log("Invalid month format: " . $_POST['month']);
+        header('Location: set_budget.php?error=invalid');
+        exit;
+    }
+
+    // Validate category_id exists
+    $category_exists = false;
+    foreach ($categories as $category) {
+        if ($category['id'] == $category_id) {
+            $category_exists = true;
+            break;
+        }
+    }
+    if (!$category_exists) {
+        error_log("Invalid category_id: $category_id");
+        header('Location: set_budget.php?error=invalid');
+        exit;
+    }
+
     $category_id = (int)$category_id;
     $budget_amount = (float)$budget_amount;
     $month = date('Y-m-01', strtotime($month));
-    // --- End: Validation and Processing ---
+    error_log("Validated inputs: category_id=$category_id, month=$month, budget_amount=$budget_amount");
 
-    // Preserve current filters for the redirect
+    // Preserve current filters for redirect
     $redirect_params = [
         'time_filter' => $_GET['time_filter'] ?? 'active',
         'status_filter' => $_GET['status_filter'] ?? ''
@@ -114,18 +174,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_budget'])) {
         header('Location: set_budget.php?error=fail');
         exit;
     }
+    error_log("Binding values: user_id=$user_id, category_id=$category_id, month=$month, budget_amount=$budget_amount");
     $stmt->bind_param('iisd', $user_id, $category_id, $month, $budget_amount);
-    if ($stmt->execute()) {
-        error_log("Budget inserted successfully for user_id: $user_id, category_id: $category_id, month: $month");
-        $redirect_params['success'] = '1';
-        header("Location: set_budget.php?" . http_build_query($redirect_params));
-        exit;
+if ($stmt->execute()) {
+    error_log("Budget inserted successfully for user_id: $user_id, category_id: $category_id, month: $month");
+
+    // --- START: New logic to set the correct time_filter for the redirect ---
+    $current_month_start = date('Y-m-01');
+    $budget_month_start = date('Y-m-01', strtotime($month)); // Ensure consistent format
+
+    if ($budget_month_start < $current_month_start) {
+        $redirect_params['time_filter'] = 'past';
+    } elseif ($budget_month_start > $current_month_start) {
+        $redirect_params['time_filter'] = 'upcoming';
     } else {
-        error_log("Insert Error: " . $stmt->error);
-        $redirect_params['error'] = 'fail';
-        header("Location: set_budget.php?" . http_build_query($redirect_params));
-        exit;
+        $redirect_params['time_filter'] = 'active';
     }
+    // --- END: New logic ---
+
+    $redirect_params['success'] = '1';
+    $redirect_url = "set_budget.php?" . http_build_query($redirect_params);
+    error_log("Redirecting to: $redirect_url");
+    header("Location: $redirect_url");
+    exit;
+} else {
+    error_log("Insert Error: " . $stmt->error);
+    $redirect_params['error'] = 'fail';
+    header("Location: set_budget.php?" . http_build_query($redirect_params));
+    exit;
+}
 }
 
 // Handle budget deletion
@@ -163,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_budget'])) {
 // Handle filters
 $time_filter = $_GET['time_filter'] ?? 'active';
 $status_filter = $_GET['status_filter'] ?? '';
-$current_date = date('Y-m-d'); // May 23, 2025
+$current_date = date('Y-m-d'); // Current date: 2025-07-03
 error_log("Applying filters - Time Filter: $time_filter, Status Filter: $status_filter");
 
 // Fetch budgets with filters
@@ -211,6 +288,7 @@ $stmt = $conn->prepare($query);
 if (!$stmt) {
     error_log("Prepare Error (Fetch Budgets): " . $conn->error);
     $error_message = 'Failed to fetch budgets.';
+    $budgets = [];
 } else {
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
@@ -282,7 +360,7 @@ foreach ($budgets as &$budget) {
             <?php } ?>
             
             <!-- Budget Form -->
-            <form id="budget-form" method="POST" action="set_budget.php?<?php echo http_build_query($_GET); ?>">
+            <form id="budget-form" method="POST" action="set_budget.php">
                 <div class="bento-grid">
                     <div class="bento-box primary-box">
                         <div class="form-group">
@@ -309,7 +387,7 @@ foreach ($budgets as &$budget) {
                         <div class="form-group">
                             <label for="budget_amount">Budget Amount <span class="required">*</span></label>
                             <div class="input-wrapper">
-                                <input type="number" name="budget_amount" id="budget_amount" step="0.01" required placeholder="Enter budget amount">
+                                <input type="number" name="budget_amount" id="budget_amount" step="0.01" min="0.01" required placeholder="Enter budget amount">
                                 <span class="input-icon"><i class="fas fa-check"></i></span>
                             </div>
                         </div>
@@ -358,7 +436,7 @@ foreach ($budgets as &$budget) {
                     <p>$<?php echo number_format($total_spent, 2); ?></p>
                 </div>
                 <div class="metric-card">
-                    <h3>Budgets at Risk</h3>
+                    <h3>Budgets Nearing Limit</h3>
                     <p><?php echo $budgets_at_risk; ?></p>
                 </div>
             </div>
@@ -449,13 +527,15 @@ foreach ($budgets as &$budget) {
                 const month = document.getElementById('month').value;
                 const budgetAmount = document.getElementById('budget_amount').value;
 
+                console.log('Form Data:', { category, month, budgetAmount });
+
                 if (!category || !month || !budgetAmount) {
                     e.preventDefault();
                     alert('Please fill in all required fields.');
                     return;
                 }
 
-                if (budgetAmount <= 0) {
+                if (parseFloat(budgetAmount) <= 0) {
                     e.preventDefault();
                     alert('Budget amount must be a positive number.');
                     return;
@@ -464,7 +544,7 @@ foreach ($budgets as &$budget) {
                 btnText.style.display = 'none';
                 spinner.style.display = 'inline-block';
                 saveBtn.classList.add('glow');
-                saveBtn.disabled = true;
+                // saveBtn.disabled = true;
             });
 
             // Real-Time Validation
@@ -486,3 +566,8 @@ foreach ($budgets as &$budget) {
     </script>
 </body>
 </html>
+
+<?php
+// Flush output buffer
+ob_end_flush();
+?>
