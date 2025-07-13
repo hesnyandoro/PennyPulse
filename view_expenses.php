@@ -1,7 +1,44 @@
 <?php
+// Start output buffering
+ob_start();
+
+// Ensure session is started
+session_start();
+
+// Include configuration
+require_once 'config.php';
+
+// Check for user session
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$user_id = (int)$_SESSION['user_id'];
+
+// Fetch user details
+$query = "SELECT username FROM users WHERE id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param('i', $user_id);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
+if (!$user) {
+    header('Location: login.php');
+    exit;
+}
+
+// Fetch user settings (theme)
+$query = "SELECT theme FROM user_settings WHERE user_id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param('i', $user_id);
+$stmt->execute();
+$settings = $stmt->get_result()->fetch_assoc();
+if (!$settings) {
+    // Default settings if none exist
+    $settings = ['theme' => 'light'];
+}
 require 'config.php';
 
-session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -207,7 +244,7 @@ $total_recurring = 0;
 foreach ($all_expenses as $exp) {
     $cat = $exp['category_name'] ?? 'N/A';
     $category_freq[$cat] = ($category_freq[$cat] ?? 0) + 1;
-    $category_spend[$cat] = ($category_spend[$cat] ?? 0) + $exp['amount'];
+    $category_spend[$cat] = ($category_spend[$cat] ?? 0) + $exp['amount'];  
     if ($category_spend[$cat] > $highest_spend) {
         $highest_spend = $category_spend[$cat];
         $top_category = $cat;
@@ -232,6 +269,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Expenses - Expense Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
@@ -260,6 +298,9 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             --delete-hover-bg: #DC2626;
             --progress-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#4B5563' : '#E5E7EB'; ?>;
         }
+
+
+        nav
 
         body {
             font-family: 'Roboto', sans-serif;
@@ -533,6 +574,26 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
     </style>
 </head>
 <body>
+    <nav class="navbar">
+            <div class="logo">Expense Tracker</div>
+            <ul class="nav-links">
+                <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Add Expense</a></li>
+                <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
+                <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
+                <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+                <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="user-profile">
+                <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+                <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
+                <button id="theme-toggle" class="theme-toggle">
+                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+                </button>
+                <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </nav> 
+
     <div class="container">
         <h1>Your Expenses</h1>
 
@@ -766,7 +827,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: {
+                        legend:{
                             position: 'top',
                         },
                     },
