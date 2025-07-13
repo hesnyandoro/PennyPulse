@@ -313,6 +313,7 @@ foreach ($budgets as &$budget) {
         $budgets_at_risk++;
     }
 }
+unset($budget); //ensures the second loop can operate on the original, unmodified array hence displaying budgets correctly and onl once
 ?>
 
 <!DOCTYPE html>
