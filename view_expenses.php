@@ -1,11 +1,8 @@
 <?php
 // Start output buffering
 ob_start();
-
-// Ensure session is started
 session_start();
 
-// Include configuration
 require_once 'config.php';
 
 // Check for user session
@@ -37,24 +34,16 @@ if (!$settings) {
     // Default settings if none exist
     $settings = ['theme' => 'light'];
 }
-require 'config.php';
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+// Handle one-time expense deletion
+if (isset($_GET['delete']) && !empty($_GET['delete'])) {
+    $delete_id = (int)($_GET['delete'] ?? 0);
+    $stmt = $conn->prepare("DELETE FROM expenses WHERE id = ? AND user_id = ?");
+    $stmt->bind_param("ii", $delete_id, $user_id);
+    $stmt->execute();
+    header('Location: view_expenses.php');
     exit;
 }
-
-$user_id = $_SESSION['user_id'];
-// only process the deletion for one time expenses
-        if (isset($_GET['delete']) && !empty($_GET['delete'])) {
-            $delete_id = (int)($_GET['delete'] ?? 0);
-            $stmt = $conn->prepare("DELETE FROM expenses WHERE id = ? AND user_id = ?");
-            $stmt->bind_param("ii", $delete_id, $user_id);
-            $stmt->execute();
-            header('Location: view_expenses.php');
-            exit;
-        }
-        
 
 // Default date range for the current month
 $default_start = new DateTime('first day of this month');
@@ -70,158 +59,127 @@ $sort = $_GET['sort'] ?? 'date';
 $order = $_GET['order'] ?? 'DESC';
 
 // Fetch one-time expenses
-$query = "SELECT e.*, c.name AS category_name 
-          FROM expenses e 
-          LEFT JOIN categories c ON e.category_id = c.id 
-          WHERE e.user_id = ?";
-$params = [$user_id];
-$types = 'i';
+$all_expenses = [];
+$generated_recurring = [];
 
-if ($filter_type !== 'All' && $filter_type === 'Recurring') {
-    $query .= " AND 1=0";
-}
-if ($filter_category) {
-    $query .= " AND e.category_id = ?";
-    $params[] = $filter_category;
-    $types .= 'i';
-}
-if ($filter_payment_method) {
-    $query .= " AND e.payment_method = ?";
-    $params[] = $filter_payment_method;
-    $types .= 's';
-}
-if (!empty($_GET['date_start'])) {
-    $query .= " AND e.date >= ?";
-    $params[] = $view_start_date->format('Y-m-d');
-    $types .= 's';
-}
-if (!empty($_GET['date_end'])) {
-    $query .= " AND e.date <= ?";
-    $params[] = $view_end_date->format('Y-m-d');
-    $types .= 's';
+// Step 1: Fetch exceptions to filter out
+$exceptions_stmt = $conn->prepare("SELECT recurring_expense_id, exception_date FROM recurring_expense_exceptions WHERE user_id = ?");
+$exceptions_stmt->bind_param('i', $user_id);
+$exceptions_stmt->execute();
+$exceptions = $exceptions_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$exception_map = [];
+foreach ($exceptions as $exception) {
+    $exception_map[$exception['recurring_expense_id'] . '_' . $exception['exception_date']] = true;
 }
 
-$stmt = $conn->prepare($query);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$one_time_expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+// Step 2: Generate all potential recurring expense instances for the date range
+if ($filter_type === 'All' || $filter_type === 'Recurring') {
+    $rec_query = "SELECT r.*, c.name AS category_name 
+                  FROM recurring_expenses r 
+                  LEFT JOIN categories c ON r.category_id = c.id 
+                  WHERE r.user_id = ?";
+    $rec_params = [$user_id];
+    $rec_types = 'i';
 
-// Add type and frequency to one-time expenses
-foreach ($one_time_expenses as &$expense) {
-    $expense['is_recurring'] = false;
-    $expense['type'] = 'One-Time';
-    $expense['frequency'] = null;
-}
-unset($expense);
-
-// Create lookup for deduplication
-$one_time_lookup = [];
-foreach ($one_time_expenses as $expense) {
-    $key = $expense['date'] . '_' . ($expense['category_id'] ?? 'N/A');
-    $one_time_lookup[$key] = $expense;
-}
-
-$all_expenses = $one_time_expenses;
-
-// Fetch and generate recurring expenses
-$rec_query = "SELECT r.*, c.name AS category_name 
-              FROM recurring_expenses r 
-              LEFT JOIN categories c ON r.category_id = c.id 
-              WHERE r.user_id = ?";
-$rec_params = [$user_id];
-$rec_types = 'i';
-
-if ($filter_type !== 'All' && $filter_type === 'One-Time') {
-    $rec_query .= " AND 1=0";
-}
-if ($filter_category) {
-    $rec_query .= " AND r.category_id = ?";
-    $rec_params[] = $filter_category;
-    $rec_types .= 'i';
-}
-if ($filter_payment_method) {
-    $rec_query .= " AND r.payment_method = ?";
-    $rec_params[] = $filter_payment_method;
-    $rec_types .= 's';
-}
-
-$rec_stmt = $conn->prepare($rec_query);
-$rec_stmt->bind_param($rec_types, ...$rec_params);
-$rec_stmt->execute();
-$recurring_rules = $rec_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-// Fetch recurring expense exceptions for the date range
-$exception_query = $conn->prepare(
-    "SELECT recurring_expense_id, exception_date FROM recurring_expense_exceptions WHERE user_id = ? AND exception_date BETWEEN ? AND ?"
-);
-$start_date_str = $view_start_date->format('Y-m-d');
-$end_date_str = $view_end_date->format('Y-m-d');
-$exception_query->bind_param("iss", $user_id, $start_date_str, $end_date_str);
-$exception_query->execute();
-$exceptions_result = $exception_query->get_result()->fetch_all(MYSQLI_ASSOC);
-
-$exceptions = [];
-foreach ($exceptions_result as $ex) {
-    $exceptions[$ex['recurring_expense_id']][$ex['exception_date']] = true;
-}
-
-// Fetch overrides to prevent duplication
-$override_query = $conn->prepare(
-    "SELECT recurring_expense_id, date FROM expenses WHERE user_id = ? AND is_override = TRUE AND date BETWEEN ? AND ?"
-);
-$override_query->bind_param("iss", $user_id, $start_date_str, $end_date_str);
-$override_query->execute();
-$overrides_result = $override_query->get_result()->fetch_all(MYSQLI_ASSOC);
-
-$overrides = [];
-foreach ($overrides_result as $ov) {
-    $overrides[$ov['recurring_expense_id']][$ov['date']] = true;
-}
-
-$recurring_expenses = [];
-$unique_recurring = [];
-foreach ($recurring_rules as $rule) {
-    $current_date = new DateTime($rule['start_date']);
-    $rule_end_date = !empty($rule['end_date']) ? new DateTime($rule['end_date']) : clone $view_end_date;
-
-    $interval = match (strtolower($rule['frequency'])) {
-        'daily' => new DateInterval('P1D'),
-        'weekly' => new DateInterval('P1W'),
-        'monthly' => new DateInterval('P1M'),
-        'yearly' => new DateInterval('P1Y'),
-        default => new DateInterval('P1M'),
-    };
-
-    while ($current_date <= $rule_end_date) {
-    $current_date_str = $current_date->format('Y-m-d');
-
-    // Skip if an exception or override exists for this date
-    if (isset($exceptions[$rule['id']][$current_date_str]) || isset($overrides[$rule['id']][$current_date_str])) {
-        $current_date->add($interval);
-        continue;
+    if ($filter_category) {
+        $rec_query .= " AND r.category_id = ?";
+        $rec_params[] = $filter_category;
+        $rec_types .= 'i';
+    }
+    if ($filter_payment_method) {
+        $rec_query .= " AND r.payment_method = ?";
+        $rec_params[] = $filter_payment_method;
+        $rec_types .= 's';
     }
 
-    if ($current_date >= $view_start_date && $current_date <= $view_end_date) {
-        $recurring_expenses[] = [
-            'id' => 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd'),
-            'rule_id' => $rule['id'], // Pass the original rule ID
-            'date' => $current_date_str,
-            'amount' => $rule['amount'],
-            'category_name' => $rule['category_name'],
-            'description' => $rule['description'],
-            'payment_method' => $rule['payment_method'],
-            'merchant' => $rule['merchant'] ?? 'N/A',
-            'is_recurring' => true,
-            'type' => 'Recurring',
-            'frequency' => $rule['frequency'],
-        ];
+    $rec_stmt = $conn->prepare($rec_query);
+    $rec_stmt->bind_param($rec_types, ...$rec_params);
+    $rec_stmt->execute();
+    $recurring_rules = $rec_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    foreach ($recurring_rules as $rule) {
+        $current_date = new DateTime($rule['start_date']);
+        $rule_end_date = !empty($rule['end_date']) ? new DateTime($rule['end_date']) : clone $view_end_date;
+
+        $interval = match (strtolower($rule['frequency'])) {
+            'daily' => new DateInterval('P1D'),
+            'weekly' => new DateInterval('P1W'),
+            'monthly' => new DateInterval('P1M'),
+            'yearly' => new DateInterval('P1Y'),
+            default => new DateInterval('P1M'),
+        };
+
+        while ($current_date <= $rule_end_date && $current_date <= $view_end_date) {
+            if ($current_date >= $view_start_date) {
+                $date_key = $rule['id'] . '_' . $current_date->format('Y-m-d');
+                // Skip if this date is marked as an exception
+                if (!isset($exception_map[$date_key])) {
+                    $instance_id = 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd');
+                    $generated_recurring[$instance_id] = [
+                        'id' => $instance_id,
+                        'rule_id' => $rule['id'],
+                        'date' => $current_date->format('Y-m-d'),
+                        'amount' => $rule['amount'],
+                        'category_name' => $rule['category_name'],
+                        'description' => $rule['description'],
+                        'payment_method' => $rule['payment_method'],
+                        'merchant' => $rule['merchant'] ?? 'N/A',
+                        'is_recurring' => true,
+                        'type' => 'Recurring',
+                        'frequency' => $rule['frequency'],
+                    ];
+                }
+            }
+            $current_date->add($interval);
+        }
     }
-    $current_date->add($interval);
-}
 }
 
-$all_expenses = array_merge($all_expenses, $recurring_expenses);
+// Step 3: Fetch all one-time expenses and overrides
+if ($filter_type === 'All' || $filter_type === 'One-Time') {
+    $one_time_query = "SELECT e.*, c.name AS category_name 
+                       FROM expenses e 
+                       LEFT JOIN categories c ON e.category_id = c.id 
+                       WHERE e.user_id = ? AND e.date BETWEEN ? AND ?";
+    $params = [$user_id, $view_start_date->format('Y-m-d'), $view_end_date->format('Y-m-d')];
+    $types = 'iss';
 
-// Sort combined expenses
+    if ($filter_category) {
+        $one_time_query .= " AND e.category_id = ?";
+        $params[] = $filter_category;
+        $types .= 'i';
+    }
+    if ($filter_payment_method) {
+        $one_time_query .= " AND e.payment_method = ?";
+        $params[] = $filter_payment_method;
+        $types .= 's';
+    }
+
+    $stmt = $conn->prepare($one_time_query);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $one_time_expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    foreach ($one_time_expenses as $expense) {
+        if (!empty($expense['recurring_expense_id'])) {
+            // This is an override for a recurring expense.
+            // Remove the auto-generated version.
+            $instance_id_to_remove = 'rec_' . $expense['recurring_expense_id'] . '_' . (new DateTime($expense['date']))->format('Ymd');
+            unset($generated_recurring[$instance_id_to_remove]);
+        }
+        
+        // Add the one-time expense to the final list
+        $expense['is_recurring'] = false;
+        $expense['type'] = 'One-Time';
+        $expense['frequency'] = null;
+        $all_expenses[] = $expense;
+    }
+}
+
+// Step 4: Merge the remaining generated recurring expenses with the one-time/override expenses
+$all_expenses = array_merge($all_expenses, array_values($generated_recurring));
+
+// Step 5: Sort the final combined list
 $sort_key = ($sort === 'category_id') ? 'category_name' : $sort;
 usort($all_expenses, function ($a, $b) use ($sort_key, $order) {
     $val_a = $a[$sort_key] ?? '';
@@ -276,7 +234,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             --primary: #1E3A8A;
             --secondary: #15803d;
             --neutral: #FFFFFF;
-            --neutral-accent:rgb(5, 9, 16);
+            --neutral-accent: rgb(5, 9, 16);
             --glow: #2DD4BF;
             --warning: #EF4444;
             --dark-bg: #1F2937;
@@ -298,9 +256,6 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             --delete-hover-bg: #DC2626;
             --progress-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#4B5563' : '#E5E7EB'; ?>;
         }
-
-
-        nav
 
         body {
             font-family: 'Roboto', sans-serif;
@@ -575,24 +530,24 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
 </head>
 <body>
     <nav class="navbar">
-            <div class="logo">Expense Tracker</div>
-            <ul class="nav-links">
-                <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
-                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Add Expense</a></li>
-                <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
-                <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
-                <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
-                <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
-            </ul>
-            <div class="user-profile">
-                <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
-                <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
-                <button id="theme-toggle" class="theme-toggle">
-                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
-                </button>
-                <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
-            </div>
-        </nav> 
+        <div class="logo">Expense Tracker</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
+            <li><a href="add_expense.php"><i class="fas fa-plus"></i> Add Expense</a></li>
+            <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
+            <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
+            <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+        <div class="user-profile">
+            <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+            <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
+            <button id="theme-toggle" class="theme-toggle">
+                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+            </button>
+            <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </nav>
 
     <div class="container">
         <h1>Your Expenses</h1>
@@ -707,8 +662,6 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
         <?php endif; ?>
 
         <a href="dashboard.php" class="add-expense-btn">Back to Dashboard</a>
-
-        
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
@@ -827,9 +780,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
                 options: {
                     responsive: true,
                     plugins: {
-                        legend:{
-                            position: 'top',
-                        },
+                        legend: { position: 'top' },
                     },
                 },
             });
