@@ -609,7 +609,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             <button class="export-btn" onclick="exportData('filtered')">Export Filtered (PDF/CSV)</button>
             <button class="export-btn" onclick="exportData('all')">Export All (PDF/CSV)</button>
         </div>
-
+        
         <?php if (count($all_expenses) > 0): ?>
             <table class="expense-table">
                 <thead>
@@ -661,7 +661,14 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             </div>
         <?php endif; ?>
 
-        <a href="dashboard.php" class="add-expense-btn">Back to Dashboard</a>
+        <!--<a href="dashboard.php" class="add-expense-btn">Back to Dashboard</a> -->
+        
+        <!-- Footer -->
+        </div>
+        <?php if (!in_array(basename($_SERVER['PHP_SELF']), ['login.php', 'register.php', 'logout.php'])) {
+            include 'footer.html';
+        } ?>
+        </div>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
