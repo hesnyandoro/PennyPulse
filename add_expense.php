@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $query = "INSERT INTO recurring_expenses (user_id, category_id, amount, payment_method, description, start_date, frequency, period, end_date) 
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($query);
-                $stmt->bind_param('iidssssis', $user_id, $category_id, $amount,$payment_method, $description, $date, $frequency, $period, $end_date);
+                $stmt->bind_param('iidssssis', $user_id, $category_id, $amount, $payment_method, $description, $date, $frequency, $period, $end_date);
             } else {
                 // Adjust query based on whether receipt_path column exists
                 if ($has_receipt_path) {
