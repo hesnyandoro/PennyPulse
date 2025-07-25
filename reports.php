@@ -1,26 +1,69 @@
 <?php
+// Start output buffering
+ob_start();
+
+session_start();
 require_once 'config.php';
 
-// Hardcode user_id for testing purposes (replace with a secure method in production)
-$user_id = 1;
+// Check for user session
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
 
-// Default settings (since we can't fetch user settings without session)
-$theme = 'light';
+$user_id = (int)$_SESSION['user_id'];
+
+// Fetch user details
+$query = "SELECT username FROM users WHERE id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param('i', $user_id);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
+if (!$user) {
+    header('Location: login.php');
+    exit;
+}
+
+// Fetch user settings (theme)
+$query = "SELECT theme FROM user_settings WHERE user_id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param('i', $user_id);
+$stmt->execute();
+$settings = $stmt->get_result()->fetch_assoc();
+if (!$settings) {
+    $settings = ['theme' => 'light'];
+}
+require_once 'config.php';
+
+// Default settings
+$theme = $settings['theme'] ?? 'light';
 $language = 'en';
 
-// Fetch categories and payment methods for filters
-$categories = [];
-$payment_methods = [];
-$stmt = $conn->prepare("SELECT DISTINCT category FROM expenses WHERE user_id = ?");
+// Fetch category names and create mapping
+$category_map = [];
+$stmt = $conn->prepare("SELECT id, name FROM categories WHERE user_id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
-    $categories[] = $row['category'];
+    $category_map[$row['id']] = $row['name'];
 }
 
-$stmt = $conn->prepare("SELECT DISTINCT payment_method FROM expenses WHERE user_id = ?");
-$stmt->bind_param("i", $user_id);
+// Fetch categories and payment methods for filters
+$categories = [];
+$payment_methods = [];
+$stmt = $conn->prepare("SELECT DISTINCT category_id FROM expenses WHERE user_id = ? UNION SELECT DISTINCT category_id FROM recurring_expenses WHERE user_id = ?");
+$stmt->bind_param("ii", $user_id, $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    if (isset($category_map[$row['category_id']])) {
+        $categories[] = $category_map[$row['category_id']];
+    }
+}
+
+$stmt = $conn->prepare("SELECT DISTINCT payment_method FROM expenses WHERE user_id = ? UNION SELECT DISTINCT payment_method FROM recurring_expenses WHERE user_id = ?");
+$stmt->bind_param("ii", $user_id, $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
@@ -82,14 +125,15 @@ switch ($time_period) {
 }
 
 // Build the expenses query with filters
-$query = "SELECT amount, category, payment_method, date FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?";
+$query = "SELECT amount, category_id AS category, payment_method, date FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?";
 $params = [$user_id, $start_date, $end_date];
 $types = "iss";
 
-if ($selected_category !== 'all') {
-    $query .= " AND category = ?";
-    $params[] = $selected_category;
-    $types .= "s";
+if ($selected_category !== 'all' && isset($category_map[array_search($selected_category, $category_map)])) {
+    $selected_category_id = array_search($selected_category, $category_map);
+    $query .= " AND category_id = ?";
+    $params[] = $selected_category_id;
+    $types .= "i";
 }
 
 if ($selected_payment_method !== 'all') {
@@ -104,11 +148,51 @@ $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+// Fetch and calculate recurring expenses
+$recurring_expenses = [];
+$query = "SELECT amount, category_id, payment_method, start_date, end_date, frequency FROM recurring_expenses WHERE user_id = ? AND start_date <= ? AND (end_date IS NULL OR end_date >= ?)";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("iss", $user_id, $end_date, $start_date);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $start = new DateTime(max($start_date, $row['start_date']));
+    $end = new DateTime(min($end_date, $row['end_date'] ?? $end_date));
+    if ($start > $end) continue; // Skip if no overlap
+
+    $interval_map = [
+        'daily' => 'P1D',
+        'weekly' => 'P7D',
+        'monthly' => 'P1M',
+        'yearly' => 'P1Y'
+    ];
+    $interval = new DateInterval($interval_map[$row['frequency']]);
+    $period = new DatePeriod($start, $interval, $end);
+
+    $count = 0;
+    foreach ($period as $date) {
+        $count++;
+    }
+    if ($count > 0) {
+        $recurring_expenses[] = [
+            'amount' => $row['amount'] * $count,
+            'category' => $row['category_id'],
+            'payment_method' => $row['payment_method'],
+            'date' => $start->format('Y-m-d') // Use start date for grouping
+        ];
+    }
+}
+
+// Merge one-time and recurring expenses
+$all_expenses = array_merge($expenses, $recurring_expenses);
+
 // Calculate summary metrics
 $total_spent = 0;
 $category_breakdown = [];
-$daily_expenses = [];
-$days = (strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24) + 1;
+$daily_expenses = []; // Initialize here
+$days = 0; // Initialize here
+
+// Generate date range and initialize daily_expenses
 $labels = [];
 $current_date = strtotime($start_date);
 $end_timestamp = strtotime($end_date);
@@ -119,30 +203,34 @@ while ($current_date <= $end_timestamp) {
     $daily_expenses[$date_str] = 0;
     $current_date = strtotime('+1 day', $current_date);
 }
+$days = (strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24) + 1; // Calculate days
 
-foreach ($expenses as $expense) {
+// Map category IDs to names for breakdown
+foreach ($all_expenses as $expense) {
+    $category_id = $expense['category'];
+    $category_name = $category_map[$category_id] ?? $category_id; // Fallback to ID if name not found
     $total_spent += $expense['amount'];
-    $category = $expense['category'];
     $date = $expense['date'];
     $daily_expenses[$date] += $expense['amount'];
 
-    if (!isset($category_breakdown[$category])) {
-        $category_breakdown[$category] = 0;
+    if (!isset($category_breakdown[$category_name])) {
+        $category_breakdown[$category_name] = 0;
     }
-    $category_breakdown[$category] += $expense['amount'];
+    $category_breakdown[$category_name] += $expense['amount'];
 }
 
 $average_daily = $days > 0 ? $total_spent / $days : 0;
 $top_category = !empty($category_breakdown) ? array_keys($category_breakdown, max($category_breakdown))[0] : 'N/A';
-$line_data = array_values($daily_expenses);
+$line_data = array_values($daily_expenses); // Safe to use now
 
 // Calculate budget status
 $overall_budget_status = 'N/A';
 $total_budgeted = 0;
 $total_spent_in_budgeted_categories = 0;
 foreach ($budgets as $category => $budget) {
-    $total_budgeted += $budget;
+    $category_id = array_search($category, $category_map); // Reverse map to ID if needed
     $spent = $category_breakdown[$category] ?? 0;
+    $total_budgeted += $budget;
     $total_spent_in_budgeted_categories += $spent;
 }
 if ($total_budgeted > 0) {
@@ -158,11 +246,11 @@ if ($total_budgeted > 0) {
 
 // Generate insights
 $insights = [];
-if ($total_spent > 0) {
+if ($top_category !== 'N/A' && $total_spent > 0) {
     if ($average_daily > 100) {
         $insights[] = "Your average daily spending is high ($" . number_format($average_daily, 2) . "). Consider reviewing discretionary expenses.";
     }
-    if (!empty($top_category) && ($category_breakdown[$top_category] / $total_spent) > 0.5) {
+    if (($category_breakdown[$top_category] / $total_spent) > 0.5) {
         $insights[] = "Over 50% of your spending is in $top_category. Diversify your spending or set a stricter budget.";
     }
     if ($total_spent_in_budgeted_categories > $total_budgeted) {
@@ -177,17 +265,20 @@ if ($total_spent > 0) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Expense Reports - Expense Tracker</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --primary: #1E3A8A; /* Trust Blue */
-            --secondary: #15803d; /* Prosperity Green */
-            --neutral: #FFFFFF; /* Clean White */
-            --neutral-accent: #E5E7EB; /* Soft Gray */
-            --glow: #2DD4BF; /* Teal Glow */
-            --warning: #EF4444; /* Soft Red */
-            --dark-bg: #1F2937; /* Dark Gray */
-            --dark-text: #D1D5DB; /* Light Gray */
+            --primary: #4A90E2;
+            --secondary: #15803d;
+            --neutral: #FFFFFF;
+            --neutral-accent: #E5E7EB;
+            --glow: #2DD4BF;
+            --warning: #EF4444;
+            --dark-bg: #1F2937;
+            --dark-text: #D1D5DB;
             --background: <?php echo $theme === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
             --text: <?php echo $theme === 'dark' ? '#D1D5DB' : '#333'; ?>;
             --card-bg: <?php echo $theme === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
@@ -267,7 +358,7 @@ if ($total_spent > 0) {
 
         .filter-panel {
             position: sticky;
-            top: 60px; /* Adjusted for theme toggle button */
+            top: 60px;
             background: var(--filter-bg);
             border-radius: 8px;
             padding: 15px;
@@ -411,9 +502,27 @@ if ($total_spent > 0) {
     </style>
 </head>
 <body class="<?php echo $theme; ?>">
+    <nav class="navbar">
+        <div class="logo">Expense Tracker</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
+            <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
+            <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
+            <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+        <div class="user-profile">
+            <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+            <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
+            <button id="theme-toggle" class="theme-toggle">
+                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+            </button>
+            <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </nav>
     <div class="container">
-        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle between light and dark theme">Toggle Theme</button>
-        <h1>Expense Reports</h1>
+        <h1>Expense Reports & Insights</h1>
 
         <!-- Filter Controls -->
         <div class="filter-panel" id="filterPanel">
@@ -468,12 +577,12 @@ if ($total_spent > 0) {
                 <p>$<?php echo number_format($total_spent, 2); ?></p>
             </div>
             <div class="bento-card summary-card">
-                <h2>Average Daily</h2>
+                <h2>Average Daily Spending</h2>
                 <p>$<?php echo number_format($average_daily, 2); ?></p>
             </div>
             <div class="bento-card summary-card">
                 <h2>Top Category</h2>
-                <p><?php echo htmlspecialchars($top_category); ?></p>
+                <p><?php echo htmlspecialchars($top_category !== 'N/A' ? $top_category : 'N/A'); ?></p>
             </div>
             <div class="bento-card summary-card">
                 <h2>Budget Status</h2>
@@ -492,9 +601,9 @@ if ($total_spent > 0) {
             <?php endif; ?>
         </div>
 
-        <!-- Budget vs. Spending -->
+        <!-- Budget against Spending -->
         <div class="bento-card">
-            <h2>Budget vs. Spending</h2>
+            <h2>Budget against Spending</h2>
             <?php if (empty($category_breakdown)): ?>
                 <p>No expenses found for the selected filters.</p>
             <?php else: ?>
@@ -526,7 +635,7 @@ if ($total_spent > 0) {
                                         <?php
                                         $budget = $budgets[$category];
                                         $percent_used = $budget > 0 ? ($amount / $budget) * 100 : 0;
-                                        $percent_used = min($percent_used, 100); // Cap at 100% for display
+                                        $percent_used = min($percent_used, 100);
                                         $progress_class = $percent_used >= 100 ? 'red' : ($percent_used >= 90 ? 'yellow' : 'green');
                                         ?>
                                         <div class="progress-bar">
@@ -555,6 +664,13 @@ if ($total_spent > 0) {
             <?php endif; ?>
         </div>
     </div>
+    </div>
+        
+        <!-- Footer -->
+        <?php if (!in_array(basename($_SERVER['PHP_SELF']), ['login.php', 'register.php', 'logout.php'])) {
+            include 'footer.html';
+        } ?>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
@@ -571,16 +687,12 @@ if ($total_spent > 0) {
             customRange.style.display = timePeriod === 'custom' ? 'block' : 'none';
         }
 
-        // Theme Toggle Functionality
         function toggleTheme() {
             const body = document.body;
             const currentTheme = localStorage.getItem('theme') || '<?php echo $theme; ?>';
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
 
-            // Update localStorage
             localStorage.setItem('theme', newTheme);
-
-            // Apply the new theme
             body.classList.remove('light', 'dark');
             body.classList.add(newTheme);
             applyTheme(newTheme);
@@ -614,18 +726,15 @@ if ($total_spent > 0) {
                 body.style.setProperty('--progress-bg', '#E5E7EB');
             }
 
-            // Update Chart.js charts if they exist
             updateCharts(theme);
         }
 
-        // Apply the theme on page load
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || '<?php echo $theme; ?>';
             document.body.classList.add(savedTheme);
             applyTheme(savedTheme);
         });
 
-        // Pie Chart: Category Distribution
         <?php if (!empty($category_breakdown)): ?>
             let pieChart, lineChart;
 
@@ -634,21 +743,17 @@ if ($total_spent > 0) {
                 const pieColors = isDark
                     ? ['#EF4444', '#60a5fa', '#FBBF24', '#34D399', '#A78BFA', '#F472B6', '#93C5FD', '#4ADE80', '#FB923C', '#38BDF8']
                     : ['#EF4444', '#1E3A8A', '#F59E0B', '#15803d', '#8B5CF6', '#EC4899', '#93C5FD', '#22C55E', '#F97316', '#0EA5E9'];
-
                 const lineBorderColor = isDark ? '#60a5fa' : '#1E3A8A';
                 const lineBackgroundColor = isDark ? 'rgba(96, 165, 250, 0.2)' : 'rgba(30, 58, 138, 0.2)';
                 const textColor = isDark ? '#D1D5DB' : '#333';
                 const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
 
-                // Update Pie Chart
                 if (pieChart) {
                     pieChart.data.datasets[0].backgroundColor = pieColors;
                     pieChart.options.plugins.legend.labels.color = textColor;
                     pieChart.options.plugins.title.color = textColor;
                     pieChart.update();
                 }
-
-                // Update Line Chart
                 if (lineChart) {
                     lineChart.data.datasets[0].borderColor = lineBorderColor;
                     lineChart.data.datasets[0].backgroundColor = lineBackgroundColor;
@@ -671,7 +776,7 @@ if ($total_spent > 0) {
                     labels: <?php echo json_encode(array_keys($category_breakdown)); ?>,
                     datasets: [{
                         data: <?php echo json_encode(array_values($category_breakdown)); ?>,
-                        backgroundColor: [], // Will be set by updateCharts
+                        backgroundColor: []
                     }]
                 },
                 options: {
@@ -686,7 +791,7 @@ if ($total_spent > 0) {
                                     let value = context.raw || 0;
                                     let total = context.dataset.data.reduce((sum, val) => sum + val, 0);
                                     let percentage = ((value / total) * 100).toFixed(2);
-                                    return `${label}: $${value.toFixed(2)} (${percentage}%)`;
+                                    return `${label}: $${value.toFixed(2)} (${percentage}%)`; // Display exact category name
                                 }
                             }
                         }
@@ -694,14 +799,13 @@ if ($total_spent > 0) {
                 }
             });
 
-            // Line Graph: Expenses Over Time
             const lineCtx = document.getElementById('expenseLineGraph').getContext('2d');
             lineChart = new Chart(lineCtx, {
                 type: 'line',
                 data: {
                     labels: <?php echo json_encode($labels); ?>,
                     datasets: [{
-                        label: 'Daily Expenses ($)',
+                        label: 'Daily Expenses',
                         data: <?php echo json_encode($line_data); ?>,
                         borderColor: '',
                         backgroundColor: '',
@@ -725,17 +829,8 @@ if ($total_spent > 0) {
                         }
                     },
                     scales: {
-                        x: {
-                            title: { display: true, text: 'Date', color: '' },
-                            grid: { color: '' },
-                            ticks: { color: '' }
-                        },
-                        y: {
-                            title: { display: true, text: 'Amount ($)', color: '' },
-                            beginAtZero: true,
-                            grid: { color: '' },
-                            ticks: { color: '' }
-                        }
+                        x: { title: { display: true, text: 'Date', color: '' }, grid: { color: '' }, ticks: { color: '' } },
+                        y: { title: { display: true, text: 'Amount ($)', color: '' }, beginAtZero: true, grid: { color: '' }, ticks: { color: '' } }
                     }
                 }
             });
