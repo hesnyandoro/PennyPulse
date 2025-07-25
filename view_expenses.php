@@ -533,7 +533,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
         <div class="logo">Expense Tracker</div>
         <ul class="nav-links">
             <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
-            <li><a href="add_expense.php"><i class="fas fa-plus"></i> Add Expense</a></li>
+            <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
             <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
             <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
@@ -646,7 +646,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
         <a href="edit_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn edit-btn">Edit</a>
         <a href="delete_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this single instance?');">Delete</a>
     <?php else: ?>
-        <a href="edit_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn">Edit</a>
+        <a href="add_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn">Edit</a>
         <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');">Delete</a>
     <?php endif; ?>
 </td>
