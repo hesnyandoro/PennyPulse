@@ -1,9 +1,6 @@
 <?php
 require 'config.php';
 
-// Session must be started to access session variables
-session_start();
-
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -32,16 +29,15 @@ if (!$expense) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Sanitize and validate all inputs
     $amount = filter_input(INPUT_POST, 'amount', FILTER_VALIDATE_FLOAT);
-    $date = filter_input(INPUT_POST, 'date', FILTER_SANITIZE_STRING);
-    $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
+    $date = filter_input(INPUT_POST, 'date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+    $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $category_id = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
-    $payment_method = filter_input(INPUT_POST, 'payment_method', FILTER_SANITIZE_STRING);
-    $merchant = filter_input(INPUT_POST, 'merchant', FILTER_SANITIZE_STRING);
+    $payment_method = filter_input(INPUT_POST, 'payment_method', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+    $merchant = filter_input(INPUT_POST, 'merchant', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
     // --- Use Prepared Statement for UPDATE ---
     $sql = "UPDATE expenses SET amount=?, date=?, description=?, category_id=?, payment_method=?, merchant=? WHERE id=? AND user_id=?";
     $update_stmt = $conn->prepare($sql);
-    // Note the types: d=double, s=string, i=integer
     $update_stmt->bind_param("dssisiii", $amount, $date, $description, $category_id, $payment_method, $merchant, $expense_id, $user_id);
     
     if ($update_stmt->execute()) {
