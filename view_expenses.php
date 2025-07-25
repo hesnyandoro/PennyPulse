@@ -226,12 +226,13 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Expenses - Expense Tracker</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --primary: #1E3A8A;
+            --primary: #4A90E2;
             --secondary: #15803d;
             --neutral: #FFFFFF;
             --neutral-accent: rgb(5, 9, 16);
@@ -532,7 +533,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
     <nav class="navbar">
         <div class="logo">Expense Tracker</div>
         <ul class="nav-links">
-            <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
+            <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
             <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
             <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
