@@ -1,5 +1,12 @@
 <?php
+session_start();
 require 'config.php';
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -11,11 +18,15 @@ $user_id = $_SESSION['user_id'];
 // Fetch user data
 $stmt = $conn->prepare("SELECT username, email, first_name, last_name FROM users WHERE id = ?");
 if (!$stmt) {
-    die("Prepare failed: " . $conn->error);
+    error_log("Prepare failed: " . $conn->error); // Logs the real error for you
+    die("An internal server error occurred.");   // Shows a generic message to the user
+
 }
 $stmt->bind_param("i", $user_id);
 if (!$stmt->execute()) {
-    die("Execute failed: " . $stmt->error);
+    error_log("Prepare failed: " . $conn->error); // Logs the real error for you
+    die("An internal server error occurred.");   // Shows a generic message to the user
+
 }
 $user = $stmt->get_result()->fetch_assoc();
 if (!$user) {
@@ -25,11 +36,14 @@ if (!$user) {
 // Fetch user settings
 $stmt = $conn->prepare("SELECT theme, language, email_notifications, in_app_notifications FROM user_settings WHERE user_id = ?");
 if (!$stmt) {
-    die("Prepare failed: " . $conn->error);
+    error_log("Prepare failed: " . $conn->error);
+    die("An internal server error occurred.");   
+
 }
 $stmt->bind_param("i", $user_id);
 if (!$stmt->execute()) {
-    die("Execute failed: " . $stmt->error);
+    error_log("Execute failed: " . $stmt->error); 
+    die("An internal server error occurred.");   
 }
 $settings = $stmt->get_result()->fetch_assoc();
 if (!$settings) {
@@ -42,6 +56,8 @@ if (!$settings) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
     <title>Settings - Expense Tracker</title>
     <style>
         body {
@@ -116,11 +132,34 @@ if (!$settings) {
     </style>
 </head>
 <body>
+    <!-- Navbar -->
+        <nav class="navbar">
+            <div class="logo">Expense Tracker</div>
+            <ul class="nav-links">
+                <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
+                <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
+                <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
+                <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+                <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="user-profile">
+                <span class="avatar">
+                    <?php echo isset($user['username'][0]) ? htmlspecialchars(strtoupper($user['username'][0])) : ''; ?>
+                </span>
+                <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
+                <button id="theme-toggle" class="theme-toggle">
+                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+                </button>
+                <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </nav>
     <div class="container">
         <!-- Profile Settings -->
         <div class="bento-card">
             <h2>Profile Settings</h2>
             <form id="profileForm">
+                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                 <input type="text" name="first_name" value="<?php echo htmlspecialchars($user['first_name']); ?>" placeholder="First Name" required>
                 <input type="text" name="last_name" value="<?php echo htmlspecialchars($user['last_name']); ?>" placeholder="Last Name" required>
                 <input type="email" name="email" value="<?php echo htmlspecialchars($user['email']); ?>" placeholder="Email" required>
@@ -133,6 +172,7 @@ if (!$settings) {
         <div class="bento-card">
             <h2>App Preferences</h2>
             <form id="settingsForm">
+                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                 <select name="theme">
                     <option value="light" <?php if ($settings['theme'] == 'light') echo 'selected'; ?>>Light</option>
                     <option value="dark" <?php if ($settings['theme'] == 'dark') echo 'selected'; ?>>Dark</option>
@@ -142,8 +182,10 @@ if (!$settings) {
                     <option value="es" <?php if ($settings['language'] == 'es') echo 'selected'; ?>>Spanish</option>
                     <option value="fr" <?php if ($settings['language'] == 'fr') echo 'selected'; ?>>French</option>
                 </select>
-                <label><input type="checkbox" name="email_notifications" <?php if ($settings['email_notifications']) echo 'checked'; ?>> Email Notifications</label>
-                <label><input type="checkbox" name="in_app_notifications" <?php if ($settings['in_app_notifications']) echo 'checked'; ?>> In-App Notifications</label>
+                <input type="hidden" name="email_notifications" value="0">
+                <label><input type="checkbox" name="email_notifications" value="1" <?php if ($settings['email_notifications']) echo 'checked'; ?>> Email Notifications</label>
+                <input type="hidden" name="in_app_notifications" value="0">
+                <label><input type="checkbox" name="in_app_notifications" value="1" <?php if ($settings['in_app_notifications']) echo 'checked'; ?>> In-App Notifications</label>
                 <button type="submit">Save Preferences</button>
             </form>
             <div id="settingsMessage"></div>
@@ -153,6 +195,7 @@ if (!$settings) {
         <div class="bento-card">
             <h2>Security Settings</h2>
             <form id="passwordForm">
+                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                 <input type="password" name="current_password" placeholder="Current Password" required>
                 <input type="password" name="new_password" placeholder="New Password" required>
                 <input type="password" name="confirm_password" placeholder="Confirm New Password" required>
@@ -170,7 +213,7 @@ if (!$settings) {
         </div>
 
         <!-- Delete Account Modal -->
-        <div id="deleteModal" class="modal">
+        <div id="deleteModal" class="modal" role="dialog" aria-modal="true" tabindex="-1">
             <div class="modal-content">
                 <h3>Confirm Account Deletion</h3>
                 <p>Are you sure you want to permanently delete your account? This action cannot be undone.</p>
@@ -213,37 +256,83 @@ if (!$settings) {
 
         document.getElementById('passwordForm').addEventListener('submit', (e) => {
             e.preventDefault();
+            const form = document.getElementById('passwordForm');
+            if (form.new_password.value !== form.confirm_password.value) {
+                document.getElementById('passwordMessage').className = 'error';
+                document.getElementById('passwordMessage').textContent = 'Passwords do not match.';
+                return;
+            }
             submitForm('passwordForm', 'change_password.php', 'passwordMessage');
         });
 
         // Modal functions
         function showDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'flex';
+            const modal = document.getElementById('deleteModal');
+            modal.style.display = 'flex';
+            modal.focus();
         }
 
         function closeDeleteModal() {
             document.getElementById('deleteModal').style.display = 'none';
         }
 
-        async function deleteAccount() {
-            const messageDiv = document.getElementById('dataMessage');
+        // Inside your settings.php file
+
+// ... (previous JavaScript code) ...
+
+async function deleteAccount() {
+    const messageDiv = document.getElementById('dataMessage');
+    closeDeleteModal(); // Close modal immediately upon confirmation
+
+    // Get the CSRF token from a hidden input or global variable
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value; // Assuming you have this hidden input in the form or similar
+
+    const formData = new FormData();
+    formData.append('csrf_token', csrfToken); // Append the CSRF token
+
+    try {
+        const response = await fetch('delete_account.php', {
+            method: 'POST',
+            body: formData // Send the FormData with the token
+        });
+        const result = await response.json();
+        if (result.success) {
+            messageDiv.className = 'success';
+            messageDiv.textContent = 'Account deleted successfully. Redirecting...';
+            // It's good practice to clear the session on the client side too
+            setTimeout(() => window.location.href = 'login.php', 2000);
+        } else {
+            messageDiv.className = 'error';
+            messageDiv.textContent = result.error;
+        }
+    } catch (error) {
+        messageDiv.className = 'error';
+        messageDiv.textContent = 'An error occurred. Please try again.';
+        console.error('Fetch error:', error); // Log the actual fetch error for debugging
+    }
+}
+
+// ... (rest of your JavaScript) ...
+
+        document.getElementById('theme-toggle').addEventListener('click', async function() {
+            const currentTheme = '<?php echo $settings['theme']; ?>';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            const formData = new FormData();
+            formData.append('theme', newTheme);
+            formData.append('csrf_token', '<?php echo $csrf_token; ?>');
             try {
-                const response = await fetch('delete_account.php', { method: 'POST' });
+                const response = await fetch('update_settings.php', {
+                    method: 'POST',
+                    body: formData
+                });
                 const result = await response.json();
                 if (result.success) {
-                    messageDiv.className = 'success';
-                    messageDiv.textContent = 'Account deleted successfully. Redirecting...';
-                    setTimeout(() => window.location.href = 'login.php', 2000);
-                } else {
-                    messageDiv.className = 'error';
-                    messageDiv.textContent = result.error;
+                    location.reload();
                 }
             } catch (error) {
-                messageDiv.className = 'error';
-                messageDiv.textContent = 'An error occurred. Please try again.';
+                alert('Failed to change theme.');
             }
-            closeDeleteModal();
-        }
+        });
     </script>
 </body>
 </html>
