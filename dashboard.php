@@ -42,26 +42,33 @@ $stmt->execute();
 $expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Fetch total expenses for the week
-$total_query = "SELECT SUM(amount) as total FROM expenses WHERE user_id = ? AND YEAR(date) = YEAR(CURRENT_DATE) AND WEEK(date) = WEEK(CURRENT_DATE)";
+// Calculate the start and end of the current week
+// ISO-8601 numeric representation of the day of the week (1 for Monday through 7 for Sunday)
+$day_of_week = date('N'); 
+$start_of_week = date('Y-m-d', strtotime('-' . ($day_of_week - 1) . ' days'));
+$end_of_week = date('Y-m-d', strtotime('+' . (7 - $day_of_week) . ' days'));
+
+// Fetch total expenses for the week using the calculated date range
+$total_query = "SELECT SUM(amount) as total FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?";
 $total_stmt = $conn->prepare($total_query);
-$total_stmt->bind_param('i', $user_id);
+$total_stmt->bind_param('iss', $user_id, $start_of_week, $end_of_week);
 $total_stmt->execute();
 $total = $total_stmt->get_result()->fetch_assoc()['total'] ?? 0;
 
 // Fetch budgets and spending for the current month
 $current_month = date('Y-m-01');
-$month_like = $current_month . '%';
+$month_like = date('Y-m-') . '%'; 
 $budget_query = "SELECT b.category_id, b.budget_amount, c.name as category_name, 
-                       COALESCE(SUM(e.amount), 0) as spent 
-                FROM budgets b 
-                JOIN categories c ON b.category_id = c.id 
-                LEFT JOIN expenses e ON e.category_id = b.category_id 
-                    AND e.user_id = b.user_id 
-                    AND e.date LIKE ? 
-                WHERE b.user_id = ? AND b.month = ? 
-                GROUP BY b.category_id, b.budget_amount, c.name";
+                        COALESCE(SUM(e.amount), 0) as spent 
+                 FROM budgets b 
+                 JOIN categories c ON b.category_id = c.id 
+                 LEFT JOIN expenses e ON e.category_id = b.category_id 
+                     AND e.user_id = b.user_id 
+                     AND e.date LIKE ? 
+                 WHERE b.user_id = ? AND b.month = ? 
+                 GROUP BY b.category_id, b.budget_amount, c.name";
 $budget_stmt = $conn->prepare($budget_query);
-$budget_stmt->bind_param('sis', $month_like, $user_id, $current_month);
+$budget_stmt->bind_param('sis', $month_like, $user_id, $current_month); 
 $budget_stmt->execute();
 $budgets = $budget_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -210,7 +217,7 @@ $remaining = $total_budget - $total_spent;
             if (savedTheme) {
                 body.className = savedTheme;
                 const icon = themeToggle.querySelector('i');
-                icon.className = savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+                icon.className = savedTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
             }
         });
     </script>
