@@ -1,12 +1,11 @@
 <?php
-session_start(); // Only one session_start() call
+session_start(); 
 require 'config.php';
 
-header('Content-Type: application/json'); // Always return JSON for AJAX requests
+header('Content-Type: application/json');
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    // Return JSON error and exit for AJAX, don't redirect header()
     echo json_encode(['success' => false, 'error' => 'Authentication required. Please log in.']);
     exit;
 }
@@ -50,8 +49,6 @@ if (!empty($errors)) {
 }
 
 // Database update
-// Make sure your database table 'users' has columns named 'first_name' and 'last_name' (lowercase with underscore)
-// If they are 'firstName' and 'lastName' (camelCase), update the SQL query.
 $stmt = $conn->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
 
 if (!$stmt) {
@@ -65,7 +62,7 @@ $stmt->bind_param("sssi", $firstName, $lastName, $email, $user_id);
 if ($stmt->execute()) {
     echo json_encode(['success' => true, 'message' => 'Profile updated successfully!']);
 } else {
-    error_log("Profile update execute failed: " . $stmt->error); // Log the actual error
+    error_log("Profile update execute failed: " . $stmt->error);
     echo json_encode(['success' => false, 'error' => 'Failed to update profile. Please try again.']);
 }
 

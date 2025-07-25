@@ -1,6 +1,6 @@
 <?php
 session_start();
-require 'config.php'; // Ensure this path is correct and it connects to the DB
+require 'config.php'; 
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -10,11 +10,9 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 // Fetch user data
-// FIX: Changed 'firstName' to 'first_name' and 'lastName' to 'last_name'
 $stmt = $conn->prepare("SELECT username, email, first_name, last_name FROM users WHERE id = ?");
 
 if (!$stmt) {
-    // Added error handling for prepare statement
     error_log("Export data (user data) prepare failed: " . $conn->error);
     die("An internal server error occurred while preparing user data export.");
 }
@@ -22,7 +20,6 @@ if (!$stmt) {
 $stmt->bind_param("i", $user_id);
 
 if (!$stmt->execute()) {
-    // Added error handling for execute statement
     error_log("Export data (user data) execute failed: " . $stmt->error);
     die("An internal server error occurred while fetching user data for export.");
 }
@@ -34,13 +31,12 @@ if (!$user_data) {
     error_log("No user data found for user ID: " . $user_id);
     die("User data not found for export.");
 }
-$stmt->close(); // Close the first statement
+$stmt->close(); 
 
 // Fetch expenses
 $stmt = $conn->prepare("SELECT amount, category, date, description FROM expenses WHERE user_id = ?");
 
 if (!$stmt) {
-    // Added error handling for prepare statement
     error_log("Export data (expenses) prepare failed: " . $conn->error);
     die("An internal server error occurred while preparing expenses export.");
 }
@@ -48,14 +44,13 @@ if (!$stmt) {
 $stmt->bind_param("i", $user_id);
 
 if (!$stmt->execute()) {
-    // Added error handling for execute statement
     error_log("Export data (expenses) execute failed: " . $stmt->error);
     die("An internal server error occurred while fetching expenses for export.");
 }
 
 $expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close(); // Close the second statement
-$conn->close(); // Close the database connection when all operations are done
+$stmt->close(); 
+$conn->close();
 
 // Generate CSV headers
 header('Content-Type: text/csv');
@@ -70,9 +65,8 @@ $output = fopen('php://output', 'w');
 // User Data Section
 fputcsv($output, ['User Data']);
 fputcsv($output, ['Username', 'Email', 'First Name', 'Last Name']);
-// FIX: Use the correct keys from the fetched $user_data array
 fputcsv($output, [$user_data['username'], $user_data['email'], $user_data['first_name'], $user_data['last_name']]);
-fputcsv($output, []); // Empty line for separation
+fputcsv($output, []); 
 
 // Expenses Section
 fputcsv($output, ['Expenses']);

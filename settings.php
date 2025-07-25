@@ -18,14 +18,14 @@ $user_id = $_SESSION['user_id'];
 // Fetch user data
 $stmt = $conn->prepare("SELECT username, email, first_name, last_name FROM users WHERE id = ?");
 if (!$stmt) {
-    error_log("Prepare failed: " . $conn->error); // Logs the real error for you
-    die("An internal server error occurred.");   // Shows a generic message to the user
+    error_log("Prepare failed: " . $conn->error); 
+    die("An internal server error occurred.");   
 
 }
 $stmt->bind_param("i", $user_id);
 if (!$stmt->execute()) {
-    error_log("Prepare failed: " . $conn->error); // Logs the real error for you
-    die("An internal server error occurred.");   // Shows a generic message to the user
+    error_log("Prepare failed: " . $conn->error); 
+    die("An internal server error occurred.");
 
 }
 $user = $stmt->get_result()->fetch_assoc();
@@ -155,6 +155,7 @@ if (!$settings) {
             </div>
         </nav>
     <div class="container">
+
         <!-- Profile Settings -->
         <div class="bento-card">
             <h2>Profile Settings</h2>
@@ -276,30 +277,22 @@ if (!$settings) {
             document.getElementById('deleteModal').style.display = 'none';
         }
 
-        // Inside your settings.php file
-
-// ... (previous JavaScript code) ...
-
 async function deleteAccount() {
     const messageDiv = document.getElementById('dataMessage');
-    closeDeleteModal(); // Close modal immediately upon confirmation
-
-    // Get the CSRF token from a hidden input or global variable
-    const csrfToken = document.querySelector('input[name="csrf_token"]').value; // Assuming you have this hidden input in the form or similar
-
+    closeDeleteModal(); 
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value; 
     const formData = new FormData();
-    formData.append('csrf_token', csrfToken); // Append the CSRF token
+    formData.append('csrf_token', csrfToken); 
 
     try {
         const response = await fetch('delete_account.php', {
             method: 'POST',
-            body: formData // Send the FormData with the token
+            body: formData 
         });
         const result = await response.json();
         if (result.success) {
             messageDiv.className = 'success';
             messageDiv.textContent = 'Account deleted successfully. Redirecting...';
-            // It's good practice to clear the session on the client side too
             setTimeout(() => window.location.href = 'login.php', 2000);
         } else {
             messageDiv.className = 'error';
@@ -308,11 +301,9 @@ async function deleteAccount() {
     } catch (error) {
         messageDiv.className = 'error';
         messageDiv.textContent = 'An error occurred. Please try again.';
-        console.error('Fetch error:', error); // Log the actual fetch error for debugging
+        console.error('Fetch error:', error); 
     }
 }
-
-// ... (rest of your JavaScript) ...
 
         document.getElementById('theme-toggle').addEventListener('click', async function() {
             const currentTheme = '<?php echo $settings['theme']; ?>';

@@ -1,5 +1,5 @@
 <?php
-session_start(); // Call session_start() only once at the very beginning
+session_start();
 require 'config.php';
 
 header('Content-Type: application/json');
@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// CSRF Token Validation
 if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
     echo json_encode(['success' => false, 'error' => 'Invalid request token.']);
     exit;
@@ -30,7 +29,7 @@ $in_app_notifications = isset($_POST['in_app_notifications']) && $_POST['in_app_
 
 // Validate inputs against allowed values
 $allowedThemes = ['light', 'dark'];
-$allowedLanguages = ['en', 'es', 'fr']; // Add more as needed
+$allowedLanguages = ['en', 'es', 'fr'];
 
 if (!in_array($theme, $allowedThemes)) {
     echo json_encode(['success' => false, 'error' => 'Invalid theme selected.']);
@@ -40,12 +39,7 @@ if (!in_array($language, $allowedLanguages)) {
     echo json_encode(['success' => false, 'error' => 'Invalid language selected.']);
     exit;
 }
-
-// Use ON DUPLICATE KEY UPDATE to handle both insert and update
-// This requires 'user_id' to be a UNIQUE KEY in your user_settings table for it to work as intended.
-// If 'user_id' is NOT a unique key, you need to first SELECT to check existence, then INSERT or UPDATE.
-// (The previous suggested code had the SELECT/INSERT/UPDATE logic, which is more robust if user_id isn't unique.)
-
+// Prepare the SQL statement to insert or update user settings
 $stmt = $conn->prepare("INSERT INTO user_settings (user_id, theme, language, email_notifications, in_app_notifications) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE theme = ?, language = ?, email_notifications = ?, in_app_notifications = ?");
 
 if (!$stmt) {

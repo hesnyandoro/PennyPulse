@@ -1,5 +1,5 @@
 <?php
-session_start(); // Call session_start() only once at the very beginning
+session_start(); 
 require 'config.php';
 
 header('Content-Type: application/json');
@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// CSRF Token Validation
+
 if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
     echo json_encode(['success' => false, 'error' => 'Invalid request token.']);
     exit;
@@ -19,9 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'error' => 'Invalid request method.']);
     exit;
 }
-
+// Ensure the user is logged in
 $user_id = $_SESSION['user_id'];
-// These inputs come from the "Security Settings" (password change) form in settings.php
 $currentPassword = $_POST['current_password'] ?? '';
 $newPassword = $_POST['new_password'] ?? '';
 $confirmPassword = $_POST['confirm_password'] ?? '';
@@ -33,7 +32,7 @@ if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
 if ($newPassword !== $confirmPassword) {
     $errors[] = 'New password and confirm password do not match.';
 }
-// Add your password policy here (e.g., minimum length, complexity)
+// Validate new password strength
 if (strlen($newPassword) < 8) {
     $errors[] = 'New password must be at least 8 characters long.';
 }
