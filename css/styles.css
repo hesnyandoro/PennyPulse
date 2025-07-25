@@ -152,11 +152,7 @@ body.dark .feature-card p {
         font-size: 28px;
     }
 }
-
-
-
-/* ################################################################################################ */
-/* Color Palette */
+/* Global Styles,color palette */
 :root {
     --primary: #1E3A8A; /* Trust Blue */
     --secondary: #15803d; /* Prosperity Green */
@@ -560,7 +556,7 @@ body.dark .bento-box:hover {
         grid-row: auto;
     }
 }
-/*ADD EXPENSE PAGE*/
+/*MANAGE EXPENSE PAGE*/
 /* Define Variables (if not already defined) */
 :root {
     --primary: #4A90E2; /* For buttons and accents */
