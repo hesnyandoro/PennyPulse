@@ -544,7 +544,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
             <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
             <button id="theme-toggle" class="theme-toggle">
-                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-sun' : 'fa-moon'; ?>"></i>
             </button>
             <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
@@ -662,8 +662,6 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
             </div>
         <?php endif; ?>
 
-        <!--<a href="dashboard.php" class="add-expense-btn">Back to Dashboard</a> -->
-        
         <!-- Footer -->
         </div>
         <?php if (!in_array(basename($_SERVER['PHP_SELF']), ['login.php', 'register.php', 'logout.php'])) {

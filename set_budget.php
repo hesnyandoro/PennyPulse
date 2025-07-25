@@ -344,7 +344,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
                 <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
                 <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
                 <button id="theme-toggle" class="theme-toggle">
-                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-sun' : 'fa-moon'; ?>"></i>
                 </button>
                 <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
