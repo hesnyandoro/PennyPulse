@@ -82,6 +82,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $payment_method = $_POST['payment_method'] ?? '';
     $date = $_POST['date'] ?? '';
     
+    // Handle receipt upload
+    $receipt_path = null;
+    if (isset($_FILES['receipt']) && $_FILES['receipt']['error'] === UPLOAD_ERR_OK) {
+        $receipt_file = $_FILES['receipt'];
+        $file_name = uniqid() . '_' . basename($receipt_file['name']);
+        $target_file = $upload_dir . $file_name;
+
+        // Check if directory exists, create if it doesn't
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+
+        // Move uploaded file
+        if (move_uploaded_file($receipt_file['tmp_name'], $target_file)) {
+            $receipt_path = $target_file;
+        } else {
+            $error_message = 'Failed to upload receipt.';
+        }
+    }
+
     // --- Validation ---
     if (empty($category_id) || empty($amount) || empty($payment_method) || empty($date)) {
         $error_message = 'Looks like you missed a required field—let’s try again!';
@@ -92,17 +112,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($error_message)) {
         // If an ID was posted, we are in 'edit' mode
         if ($post_id) {
-            $sql = "UPDATE expenses SET amount=?, description=?, category_id=?, payment_method=?, date=? WHERE id=? AND user_id=?";
+            $sql = "UPDATE expenses SET amount=?, description=?, category_id=?, payment_method=?, date=?, receipt_path=? WHERE id=? AND user_id=?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("dsissii", $amount, $description, $category_id, $payment_method, $date, $post_id, $user_id);
+            $stmt->bind_param("dsissisi", $amount, $description, $category_id, $payment_method, $date, $receipt_path, $post_id, $user_id);
         }
         // Otherwise, we are in 'add' mode
         else {
-            // Note: This simplified version omits recurring & receipt logic from the original 'add' for clarity.
-            // You can merge that complex logic back in here if needed.
-            $sql = "INSERT INTO expenses (user_id, amount, description, category_id, payment_method, date) VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO expenses (user_id, amount, description, category_id, payment_method, date, receipt_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("idssis", $user_id, $amount, $description, $category_id, $payment_method, $date);
+            $stmt->bind_param("idssiss", $user_id, $amount, $description, $category_id, $payment_method, $date, $receipt_path);
         }
 
         if ($stmt->execute()) {
@@ -136,8 +154,8 @@ $stmt = $conn->prepare("SELECT id, name FROM categories WHERE user_id = ? OR use
 $stmt->bind_param('i', $user_id);
 $stmt->execute();
 $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -152,7 +170,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         <nav class="navbar">
             <div class="logo">Expense Tracker</div>
             <ul class="nav-links">
-                <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="manage_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
                 <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
                 <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
@@ -177,7 +195,6 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <?php endif; ?>
             
             <form id="expense-form" method="POST" enctype="multipart/form-data">
-                
                 <?php if ($mode === 'edit'): ?>
                     <input type="hidden" name="expense_id" value="<?php echo htmlspecialchars($expense_id); ?>">
                 <?php endif; ?>
@@ -230,22 +247,28 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             </div>
                         </div>
 
-                         <?php if ($mode === 'add'): ?>
+                        <?php if ($mode === 'add'): ?>
                             <div class="form-group">
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="is_recurring" id="is_recurring"> Is this a recurring expense?
                                 </label>
                             </div>
-                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
-                    <?php if ($mode === 'add'): ?>
-                    <div class="bento-box secondary-box">
-                        <div class="form-group">
-                            <label for="receipt">Upload Receipt</label>
-                            </div>
-                    </div>
-                    <?php endif; ?>
                 </div>
+
+                <?php if ($mode === 'add'): ?>
+                    <div class="bento-grid">
+                        <div class="bento-box secondary-box">
+                            <div class="form-group">
+                                <label for="receipt">Upload Receipt</label>
+                                <div class="input-wrapper">
+                                    <input type="file" name="receipt" id="receipt" accept="image/*,application/pdf">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <div class="form-actions">
                     <button type="submit" class="save-btn" id="save-btn">
@@ -258,5 +281,5 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         </div>
         <?php include 'footer.html'; ?>
     </div>
-    </body>
+</body>
 </html>
