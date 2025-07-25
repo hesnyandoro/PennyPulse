@@ -94,7 +94,7 @@ $remaining = $total_budget - $total_spent;
             <div class="logo">Expense Tracker</div>
             <ul class="nav-links">
                 <li><a href="dashboard.php"><i class="fas fa-home"></i> Home</a></li>
-                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Add Expense</a></li>
+                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
                 <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
                 <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
@@ -172,7 +172,7 @@ $remaining = $total_budget - $total_spent;
                                     <td><?php echo htmlspecialchars($expense['category']); ?></td>
                                     <td><?php echo htmlspecialchars($expense['description']); ?></td>
                                     <td>$<?php echo number_format($expense['amount'], 2); ?></td>
-                                    <td><a href="edit_expenses.php?id=<?php echo $expense['id']; ?>" class="btn">Edit</a></td>
+                                    <td><a href="add_expense.php?id=<?php echo $expense['id']; ?>" class="btn">Edit</a></td>
                                 </tr>
                             <?php } ?>
                         </tbody>
