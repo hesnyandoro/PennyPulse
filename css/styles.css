@@ -1117,3 +1117,112 @@ body.dark .empty-state p {
         max-width: 300px;
     }
 }
+
+/* === Modal Styles === */
+
+/* The Overlay (background) */
+.modal-overlay {
+  display: none; /* Hidden by default */
+  position: fixed; 
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.6); /* Black w/ opacity */
+  justify-content: center;
+  align-items: center;
+}
+
+/* Modal Content Box */
+.modal-content {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  animation: fadeIn 0.3s;
+}
+
+/* Dark theme modal content */
+body.dark .modal-content {
+    background-color: #2d3748; /* Or your dark theme bg color */
+    color: #f7fafc;
+}
+
+/* The Close Button */
+.close-btn {
+  color: #aaa;
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+  color: #333;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+body.dark .close-btn:hover,
+body.dark .close-btn:focus {
+    color: #fff;
+}
+
+
+/* Modal Form Styling */
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+.modal-content input[type="text"],
+.modal-content input[type="email"],
+.modal-content input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* Important */
+}
+.modal-content .btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    font-size: 1rem;
+}
+
+/* Modal Tab System */
+.modal-tabs {
+    display: flex;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 1rem;
+}
+.tab-link {
+    background: none;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #888;
+}
+.tab-link.active {
+    color: #007bff;
+    border-bottom: 2px solid #007bff;
+}
+.tab-content {
+    display: none; /* Hide tab content by default */
+}
+
+/* Animation for modal appearance */
+@keyframes fadeIn {
+  from {opacity: 0; transform: translateY(-20px);}
+  to {opacity: 1; transform: translateY(0);}
+}
