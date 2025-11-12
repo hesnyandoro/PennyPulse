@@ -74,14 +74,16 @@ while ($row = $result->fetch_assoc()) {
 
 // Fetch budgets
 $budgets = [];
-$stmt = $conn->prepare("SELECT category, budget_amount FROM budgets WHERE user_id = ?");
+$stmt = $conn->prepare("SELECT category_id, budget_amount FROM budgets WHERE user_id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
-    $budgets[$row['category']] = $row['budget_amount'];
-}
-
+    if (isset($category_map[$row['category_id']])) {
+        $category_name = $category_map[$row['category_id']];
+        $budgets[$category_name] = $row['budget_amount'];
+    }
+}    
 // Default filter values
 $time_period = 'this_month';
 $selected_category = 'all';
