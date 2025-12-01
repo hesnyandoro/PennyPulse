@@ -12,7 +12,7 @@ require_once 'includes/theme_handler.php';
 
 // Check for user session
 if (!isset($_SESSION['user_id'])) {
-    error_log("Session user_id not set, redirecting to login.php");
+    error_log("Session user_id not set, redirecting to auth.php");
     header('Location: auth.php?form=login');
     exit;
 }

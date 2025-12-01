@@ -36,6 +36,11 @@ if (!$user) {
 
 // Fetch user settings
 $settings = getUserTheme($conn, $user_id);
+
+// Set default values for settings that may not exist
+$settings['language'] = $settings['language'] ?? 'en';
+$settings['email_notifications'] = $settings['email_notifications'] ?? 0;
+$settings['in_app_notifications'] = $settings['in_app_notifications'] ?? 0;
 ?>
 
 <!DOCTYPE html>
