@@ -1,6 +1,7 @@
 <?php
 session_start(); 
 require 'config.php';
+require_once 'includes/theme_handler.php';
 
 header('Content-Type: application/json');
 
@@ -86,3 +87,30 @@ if ($stmt->execute()) {
 $stmt->close();
 $conn->close();
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change Password</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
+</head>
+<body class="<?php echo htmlspecialchars(getUserTheme($conn, $_SESSION['user_id'])['theme']); ?>">
+    <div class="app">
+        <nav class="navbar">
+            <div class="logo">Expense Tracker</div>
+            <div class="user-profile">
+                <a href="dashboard.php" class="btn">Dashboard</a>
+                <a href="logout.php" class="btn logout-btn">Logout</a>
+            </div>
+        </nav>
+        <div class="container">
+            <h1>Change Password</h1>
+            <!-- Content here if it were a page and not an API -->
+        </div>
+        <?php include 'footer.html'; ?>
+    </div>
+    <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+</body>
+</html>

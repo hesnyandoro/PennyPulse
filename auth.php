@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt = $conn->prepare('INSERT INTO users (first_name, last_name, email, username, password, phone) VALUES (?, ?, ?, ?, ?, ?)');
                 $stmt->bind_param('ssssss', $first_name, $last_name, $email, $username, $hashed_password, $phone);
                 if ($stmt->execute()) {
-                    header('Location: login.php?registered=1');
+                    header('Location: auth.php?form=login&registered=1');
                     exit;
                 } else {
                     $error = 'Registration failed. Please try again.';
@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo ucfirst($active_tab); ?> - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -227,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     </style>
 </head>
-<body>
+<body class="light">
     <nav class="navbar">
         <div class="logo">Expense Tracker</div>
         <a href="index.php" class="home-link">Home</a>
@@ -245,73 +245,80 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </button>
         </div>
 
-        <?php if ($active_tab === 'register') { ?>
-            <div id="register-form">
-                <h2 class="form-title">Register</h2>
-                <p class="subtitle">Signup now and get full access to our app.</p>
-                <?php if ($error) { echo "<div class='error'>$error</div>"; } ?>
-                <form method="POST">
-                    <input type="hidden" name="action" value="register">
-                    <div class="input-row">
-                        <input type="text" name="first_name" placeholder="Firstname" value="<?php echo htmlspecialchars($_POST['first_name'] ?? ''); ?>" required>
-                        <input type="text" name="last_name" placeholder="Lastname" value="<?php echo htmlspecialchars($_POST['last_name'] ?? ''); ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" name="username" placeholder="Username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="password" name="password" placeholder="Password" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="password" name="confirm_password" placeholder="Confirm Password" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" name="phone" placeholder="Phone Number (Optional)" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
-                    </div>
-                    <button type="submit" class="submit-btn">Submit</button>
-                </form>
-                <p class="toggle-link">Already have an account? <a href="#" onclick="switchTab('login')">Sign in</a></p>
-            </div>
-        <?php } else { ?>
-            <div id="login-form">
-                <h2 class="form-title">Login</h2>
-                <p class="subtitle">Sign in to your account</p>
-                <?php if ($error) { echo "<div class='error'>$error</div>"; } ?>
-                <form method="POST">
-                    <input type="hidden" name="action" value="login">
-                    <div class="input-group">
-                        <input type="text" name="username" placeholder="Username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="password" name="password" placeholder="Password" required>
-                    </div>
-                    <button type="submit" class="submit-btn">Login</button>
-                </form>
-                <p class="toggle-link">Don't have an account? <a href="#" onclick="switchTab('register')">Register</a></p>
-            </div>
-        <?php } ?>
+    <div id="register-form" class="<?php echo $active_tab !== 'register' ? 'form-hidden' : ''; ?>">
+    <h2 class="form-title">Register</h2>
+    <p class="subtitle">Signup now and get full access to our app.</p>
+    <?php if ($error && $active_tab === 'register') { echo "<div class='error'>$error</div>"; } ?>
+    <form method="POST">
+        <input type="hidden" name="action" value="register">
+        <div class="input-row">
+            <input type="text" name="first_name" placeholder="Firstname" value="<?php echo htmlspecialchars($_POST['first_name'] ?? ''); ?>" required>
+            <input type="text" name="last_name" placeholder="Lastname" value="<?php echo htmlspecialchars($_POST['last_name'] ?? ''); ?>" required>
+        </div>
+        <div class="input-group">
+            <input type="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
+        </div>
+        <div class="input-group">
+            <input type="text" name="username" placeholder="Username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
+        </div>
+        <div class="input-group">
+            <input type="password" name="password" placeholder="Password" required>
+        </div>
+        <div class="input-group">
+            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+        </div>
+        <div class="input-group">
+            <input type="text" name="phone" placeholder="Phone Number (Optional)" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
+        </div>
+        <button type="submit" class="submit-btn">Submit</button>
+    </form>
+    <p class="toggle-link">Already have an account? <a href="#" onclick="switchTab('login'); return false;">Sign in</a></p>
+</div>
+
+<div id="login-form" class="<?php echo $active_tab !== 'login' ? 'form-hidden' : ''; ?>">
+    <h2 class="form-title">Login</h2>
+    <p class="subtitle">Sign in to your account</p>
+    <?php if ($error && $active_tab === 'login') { echo "<div class='error'>$error</div>"; } ?>
+    <form method="POST">
+        <input type="hidden" name="action" value="login">
+        <div class="input-group">
+            <input type="text" name="username" placeholder="Username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
+        </div>
+        <div class="input-group">
+            <input type="password" name="password" placeholder="Password" required>
+        </div>
+        <button type="submit" class="submit-btn">Login</button>
+    </form>
+    <p class="toggle-link">Don't have an account? <a href="#" onclick="switchTab('register'); return false;">Register</a></p>
+</div>    
     </div>
 
     <script>
-        function switchTab(tabName) {
-            // Hide both forms
-            document.getElementById('register-form').style.display = 'none';
-            document.getElementById('login-form').style.display = 'none';
+    function switchTab(tabName) {
+        const registerForm = document.getElementById('register-form');
+        const loginForm = document.getElementById('login-form');
+        
+        const registerTab = document.querySelector('button.tab[onclick*="register"]');
+        const loginTab = document.querySelector('button.tab[onclick*="login"]');
+
+        if (tabName === 'register') {
+            registerForm.classList.remove('form-hidden');
+            loginForm.classList.add('form-hidden');
             
-            // Show the selected form
-            if (tabName === 'register') {
-                document.getElementById('register-form').style.display = 'block';
-            } else {
-                document.getElementById('login-form').style.display = 'block';
-            }
-            
-            // Update active tab classes
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            event.target.closest('.tab').classList.add('active');
+            registerTab.classList.add('active');
+            loginTab.classList.remove('active');
+        } else {
+            loginForm.classList.remove('form-hidden');
+            registerForm.classList.add('form-hidden');
+
+            loginTab.classList.add('active');
+            registerTab.classList.remove('active');
         }
-    </script>
+    }
+
+    // Also modify the links in your HTML to prevent the page from jumping
+    // onclick="switchTab('login'); return false;"
+    // onclick="switchTab('register'); return false;"
+</script>
 </body>
 </html>

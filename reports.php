@@ -4,10 +4,11 @@ ob_start();
 
 session_start();
 require_once 'config.php';
+require_once 'includes/theme_handler.php';
 
 // Check for user session
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 
@@ -20,22 +21,12 @@ $stmt->bind_param('i', $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 if (!$user) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 
 // Fetch user settings (theme)
-$query = "SELECT theme FROM user_settings WHERE user_id = ?";
-$stmt = $conn->prepare($query);
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$settings = $stmt->get_result()->fetch_assoc();
-if (!$settings) {
-    $settings = ['theme' => 'light'];
-}
-require_once 'config.php';
-
-// Default settings
+$settings = getUserTheme($conn, $user_id);
 $theme = $settings['theme'] ?? 'light';
 $language = 'en';
 
@@ -269,245 +260,13 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
     <title>Expense Reports - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style>
-        :root {
-            --primary: #4A90E2;
-            --secondary: #15803d;
-            --neutral: #FFFFFF;
-            --neutral-accent: #E5E7EB;
-            --glow: #2DD4BF;
-            --warning: #EF4444;
-            --dark-bg: #1F2937;
-            --dark-text: #D1D5DB;
-            --background: <?php echo $theme === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
-            --text: <?php echo $theme === 'dark' ? '#D1D5DB' : '#333'; ?>;
-            --card-bg: <?php echo $theme === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
-            --filter-bg: <?php echo $theme === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
-            --border: <?php echo $theme === 'dark' ? '#D1D5DB' : '#E5E7EB'; ?>;
-            --table-header-bg: <?php echo $theme === 'dark' ? '#374151' : '#E5E7EB'; ?>;
-            --insight-bg: <?php echo $theme === 'dark' ? '#374151' : '#E5E7EB'; ?>;
-            --input-bg: <?php echo $theme === 'dark' ? '#374151' : '#FFFFFF'; ?>;
-            --input-border: <?php echo $theme === 'dark' ? '#4B5563' : '#D1D5DB'; ?>;
-            --input-text: <?php echo $theme === 'dark' ? '#D1D5DB' : '#333'; ?>;
-            --button-bg: #15803d;
-            --button-hover-bg: #166534;
-            --progress-bg: <?php echo $theme === 'dark' ? '#4B5563' : '#E5E7EB'; ?>;
-        }
-
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--background);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .theme-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 15px;
-            background-color: var(--button-bg);
-            color: var(--neutral);
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            transition: background-color 0.3s;
-        }
-
-        .theme-toggle:hover {
-            background-color: var(--button-hover-bg);
-        }
-
-        .bento-card {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: transform 0.3s, box-shadow 0.3s, background-color 0.3s;
-        }
-
-        .bento-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2), 0 0 10px var(--glow);
-        }
-
-        h1, h2 {
-            margin-top: 0;
-            font-weight: 600;
-        }
-
-        h1 {
-            font-size: 28px;
-            color: var(--primary);
-        }
-
-        h2 {
-            font-size: 18px;
-            color: var(--primary);
-        }
-
-        .filter-panel {
-            position: sticky;
-            top: 60px;
-            background: var(--filter-bg);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            z-index: 1000;
-            transition: background-color 0.3s;
-        }
-
-        .filter-panel.collapsed .filter-content {
-            display: none;
-        }
-
-        .filter-toggle {
-            cursor: pointer;
-            font-weight: 500;
-            margin-bottom: 10px;
-        }
-
-        .filter-content {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-        }
-
-        label {
-            font-weight: 500;
-            color: var(--neutral-accent);
-        }
-
-        select, input, button {
-            padding: 8px 12px;
-            border-radius: 5px;
-            border: 1px solid var(--input-border);
-            background-color: var(--input-bg);
-            color: var(--input-text);
-            font-size: 14px;
-            font-family: 'Roboto', sans-serif;
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 5px rgba(30, 58, 138, 0.3);
-        }
-
-        button {
-            background-color: var(--button-bg);
-            color: var(--neutral);
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        button:hover {
-            background-color: var(--button-hover-bg);
-        }
-
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .summary-card {
-            text-align: center;
-        }
-
-        .summary-card p {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-            font-size: 14px;
-        }
-
-        th {
-            background-color: var(--table-header-bg);
-            font-weight: 600;
-            transition: background-color 0.3s;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f9fafb;
-        }
-
-        canvas {
-            max-width: 100%;
-            margin-bottom: 20px;
-        }
-
-        .progress-bar {
-            width: 100%;
-            background-color: var(--progress-bg);
-            border-radius: 5px;
-            overflow: hidden;
-            height: 10px;
-            margin-top: 5px;
-            transition: background-color 0.3s;
-        }
-
-        .progress {
-            height: 100%;
-            transition: width 0.3s;
-        }
-
-        .progress.green {
-            background-color: var(--secondary);
-        }
-
-        .progress.yellow {
-            background-color: #e67e22;
-        }
-
-        .progress.red {
-            background-color: var(--warning);
-        }
-
-        .insight {
-            padding: 10px 15px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-            background-color: var(--insight-bg);
-            font-size: 14px;
-            transition: background-color 0.3s;
-        }
-    </style>
 </head>
-<body class="<?php echo $theme; ?>">
+<body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <nav class="navbar">
         <div class="logo">Expense Tracker</div>
         <ul class="nav-links">
-            <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
             <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
             <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
@@ -675,7 +434,9 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
     <script>
+        let pieChart, lineChart;
         function toggleFilters() {
             const panel = document.getElementById('filterPanel');
             const content = panel.querySelector('.filter-content');
@@ -689,88 +450,39 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
             customRange.style.display = timePeriod === 'custom' ? 'block' : 'none';
         }
 
-        function toggleTheme() {
-            const body = document.body;
-            const currentTheme = localStorage.getItem('theme') || '<?php echo $theme; ?>';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        function updateCharts(theme) {
+            const isDark = theme === 'dark';
+            const pieColors = isDark
+                ? ['#EF4444', '#60a5fa', '#FBBF24', '#34D399', '#A78BFA', '#F472B6', '#93C5FD', '#4ADE80', '#FB923C', '#38BDF8']
+                : ['#EF4444', '#1E3A8A', '#F59E0B', '#15803d', '#8B5CF6', '#EC4899', '#93C5FD', '#22C55E', '#F97316', '#0EA5E9'];
+            const lineBorderColor = isDark ? '#60a5fa' : '#1E3A8A';
+            const lineBackgroundColor = isDark ? 'rgba(96, 165, 250, 0.2)' : 'rgba(30, 58, 138, 0.2)';
+            const textColor = isDark ? '#D1D5DB' : '#333';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
 
-            localStorage.setItem('theme', newTheme);
-            body.classList.remove('light', 'dark');
-            body.classList.add(newTheme);
-            applyTheme(newTheme);
-        }
-
-        function applyTheme(theme) {
-            const body = document.body;
-            if (theme === 'dark') {
-                body.style.setProperty('--background', '#1F2937');
-                body.style.setProperty('--text', '#D1D5DB');
-                body.style.setProperty('--card-bg', '#1F2937');
-                body.style.setProperty('--filter-bg', '#1F2937');
-                body.style.setProperty('--border', '#D1D5DB');
-                body.style.setProperty('--table-header-bg', '#374151');
-                body.style.setProperty('--insight-bg', '#374151');
-                body.style.setProperty('--input-bg', '#374151');
-                body.style.setProperty('--input-border', '#4B5563');
-                body.style.setProperty('--input-text', '#D1D5DB');
-                body.style.setProperty('--progress-bg', '#4B5563');
-            } else {
-                body.style.setProperty('--background', '#FFFFFF');
-                body.style.setProperty('--text', '#333');
-                body.style.setProperty('--card-bg', '#FFFFFF');
-                body.style.setProperty('--filter-bg', '#FFFFFF');
-                body.style.setProperty('--border', '#E5E7EB');
-                body.style.setProperty('--table-header-bg', '#E5E7EB');
-                body.style.setProperty('--insight-bg', '#E5E7EB');
-                body.style.setProperty('--input-bg', '#FFFFFF');
-                body.style.setProperty('--input-border', '#D1D5DB');
-                body.style.setProperty('--input-text', '#333');
-                body.style.setProperty('--progress-bg', '#E5E7EB');
+            if (pieChart) {
+                pieChart.data.datasets[0].backgroundColor = pieColors;
+                pieChart.options.plugins.legend.labels.color = textColor;
+                pieChart.options.plugins.title.color = textColor;
+                pieChart.update();
             }
-
-            updateCharts(theme);
+            if (lineChart) {
+                lineChart.data.datasets[0].borderColor = lineBorderColor;
+                lineChart.data.datasets[0].backgroundColor = lineBackgroundColor;
+                lineChart.options.plugins.legend.labels.color = textColor;
+                lineChart.options.plugins.title.color = textColor;
+                lineChart.options.scales.x.title.color = textColor;
+                lineChart.options.scales.y.title.color = textColor;
+                lineChart.options.scales.x.grid.color = gridColor;
+                lineChart.options.scales.y.grid.color = gridColor;
+                lineChart.options.scales.x.ticks.color = textColor;
+                lineChart.options.scales.y.ticks.color = textColor;
+                lineChart.update();
+            }
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || '<?php echo $theme; ?>';
-            document.body.classList.add(savedTheme);
-            applyTheme(savedTheme);
-        });
 
         <?php if (!empty($category_breakdown)): ?>
-            let pieChart, lineChart;
-
-            function updateCharts(theme) {
-                const isDark = theme === 'dark';
-                const pieColors = isDark
-                    ? ['#EF4444', '#60a5fa', '#FBBF24', '#34D399', '#A78BFA', '#F472B6', '#93C5FD', '#4ADE80', '#FB923C', '#38BDF8']
-                    : ['#EF4444', '#1E3A8A', '#F59E0B', '#15803d', '#8B5CF6', '#EC4899', '#93C5FD', '#22C55E', '#F97316', '#0EA5E9'];
-                const lineBorderColor = isDark ? '#60a5fa' : '#1E3A8A';
-                const lineBackgroundColor = isDark ? 'rgba(96, 165, 250, 0.2)' : 'rgba(30, 58, 138, 0.2)';
-                const textColor = isDark ? '#D1D5DB' : '#333';
-                const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
-
-                if (pieChart) {
-                    pieChart.data.datasets[0].backgroundColor = pieColors;
-                    pieChart.options.plugins.legend.labels.color = textColor;
-                    pieChart.options.plugins.title.color = textColor;
-                    pieChart.update();
-                }
-                if (lineChart) {
-                    lineChart.data.datasets[0].borderColor = lineBorderColor;
-                    lineChart.data.datasets[0].backgroundColor = lineBackgroundColor;
-                    lineChart.options.plugins.legend.labels.color = textColor;
-                    lineChart.options.plugins.title.color = textColor;
-                    lineChart.options.scales.x.title.color = textColor;
-                    lineChart.options.scales.y.title.color = textColor;
-                    lineChart.options.scales.x.grid.color = gridColor;
-                    lineChart.options.scales.y.grid.color = gridColor;
-                    lineChart.options.scales.x.ticks.color = textColor;
-                    lineChart.options.scales.y.ticks.color = textColor;
-                    lineChart.update();
-                }
-            }
-
+            
             const categoryCtx = document.getElementById('categoryPieChart').getContext('2d');
             pieChart = new Chart(categoryCtx, {
                 type: 'pie',
@@ -798,7 +510,6 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
                             }
                         }
                     }
-                }
             });
 
             const lineCtx = document.getElementById('expenseLineGraph').getContext('2d');
@@ -837,6 +548,11 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
                 }
             });
         <?php endif; ?>
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || '<?php echo $theme; ?>';
+            updateCharts(savedTheme);
+        });
     </script>
 </body>
 </html>

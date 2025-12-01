@@ -1,8 +1,9 @@
 <?php
 require_once 'config.php';
+require_once 'includes/theme_handler.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 
@@ -144,10 +145,7 @@ $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 
 // Fetch theme settings
-$stmt = $conn->prepare("SELECT theme FROM user_settings WHERE user_id = ?");
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$settings = $stmt->get_result()->fetch_assoc() ?: ['theme' => 'light'];
+$settings = getUserTheme($conn, $user_id);
 
 // Fetch categories for the dropdown
 $stmt = $conn->prepare("SELECT id, name FROM categories WHERE user_id = ? OR user_id IS NULL");
@@ -163,7 +161,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(ucwords(strtolower($page_title))); ?> - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <div class="app">
@@ -281,5 +279,6 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         </div>
         <?php include 'footer.html'; ?>
     </div>
+    <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
 </body>
 </html>

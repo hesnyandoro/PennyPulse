@@ -4,10 +4,11 @@ ob_start();
 session_start();
 
 require_once 'config.php';
+require_once 'includes/theme_handler.php';
 
 // Check for user session
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 
@@ -20,20 +21,12 @@ $stmt->bind_param('i', $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 if (!$user) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 
 // Fetch user settings (theme)
-$query = "SELECT theme FROM user_settings WHERE user_id = ?";
-$stmt = $conn->prepare($query);
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$settings = $stmt->get_result()->fetch_assoc();
-if (!$settings) {
-    // Default settings if none exist
-    $settings = ['theme' => 'light'];
-}
+$settings = getUserTheme($conn, $user_id);
 
 // Handle one-time expense deletion
 if (isset($_GET['delete']) && !empty($_GET['delete'])) {
@@ -228,308 +221,10 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
     <title>View Expenses - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style>
-        :root {
-            --primary: #4A90E2;
-            --secondary: #15803d;
-            --neutral: #FFFFFF;
-            --neutral-accent: rgb(5, 9, 16);
-            --glow: #2DD4BF;
-            --warning: #EF4444;
-            --dark-bg: #1F2937;
-            --dark-text: #D1D5DB;
-            --background: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
-            --text: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#D1D5DB' : '#333'; ?>;
-            --card-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
-            --filter-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#1F2937' : '#FFFFFF'; ?>;
-            --border: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#D1D5DB' : '#E5E7EB'; ?>;
-            --table-header-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#374151' : '#E5E7EB'; ?>;
-            --input-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#374151' : '#FFFFFF'; ?>;
-            --input-border: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#4B5563' : '#D1D5DB'; ?>;
-            --input-text: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#D1D5DB' : '#333'; ?>;
-            --button-bg: #15803d;
-            --button-hover-bg: #166534;
-            --edit-bg: #10B981;
-            --edit-hover-bg: #059669;
-            --delete-bg: #EF4444;
-            --delete-hover-bg: #DC2626;
-            --progress-bg: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#4B5563' : '#E5E7EB'; ?>;
-        }
-
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--background);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            font-size: 28px;
-            font-weight: 600;
-            color: var(--primary);
-            margin-bottom: 20px;
-        }
-
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .summary-card {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .summary-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 0 10px var(--glow);
-        }
-
-        .summary-card h3 {
-            font-size: 16px;
-            margin-bottom: 10px;
-            color: var(--neutral-accent);
-        }
-
-        .summary-card p {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        form {
-            background: var(--filter-bg);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        select, input, button {
-            padding: 8px 12px;
-            border-radius: 5px;
-            border: 1px solid var(--input-border);
-            background-color: var(--input-bg);
-            color: var(--input-text);
-            font-size: 14px;
-            font-family: 'Roboto', sans-serif;
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 5px rgba(30, 58, 138, 0.3);
-        }
-
-        button {
-            background-color: var(--button-bg);
-            color: var(--neutral);
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-            padding: 8px 15px;
-        }
-
-        button:hover {
-            background-color: var(--button-hover-bg);
-        }
-
-        .export-btn {
-            background: var(--primary);
-            color: var(--neutral);
-            padding: 8px 15px;
-            border: none;
-            border-radius: 5px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.3s, transform 0.1s;
-            margin-right: 10px;
-        }
-
-        .export-btn:hover {
-            background: #152e6f;
-            transform: translateY(-2px);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-            background: var(--card-bg);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        th {
-            background-color: var(--table-header-bg);
-            font-weight: 600;
-        }
-
-        tr:nth-child(even) {
-            background-color: <?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? '#374151' : '#f9fafb'; ?>;
-        }
-
-        .action-btn {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 5px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: transform 0.2s, background-color 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .action-btn::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            background: var(--glow);
-            opacity: 0;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: width 0.5s, height 0.5s, opacity 0.5s;
-        }
-
-        .action-btn:hover::after {
-            width: 200px;
-            height: 200px;
-            opacity: 0.3;
-        }
-
-        .edit-btn {
-            background-color: var(--edit-bg);
-            color: var(--neutral);
-            margin-right: 5px;
-        }
-
-        .edit-btn:hover {
-            background-color: var(--edit-hover-bg);
-            transform: translateY(-2px);
-        }
-
-        .delete-btn {
-            background-color: var(--delete-bg);
-            color: var(--neutral);
-        }
-
-        .delete-btn:hover {
-            background-color: var(--delete-hover-bg);
-            transform: translateY(-2px);
-        }
-
-        .action-btn.disabled {
-            background-color: #9CA3AF;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            background: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .empty-state p {
-            font-size: 1.2rem;
-            color: var(--neutral-accent);
-            margin-bottom: 20px;
-        }
-
-        .add-expense-btn {
-            background: var(--primary);
-            color: var(--neutral);
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s, transform 0.1s;
-        }
-
-        .add-expense-btn:hover {
-            background: #152e6f;
-            transform: translateY(-2px);
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 10px;
-            border-radius: 12px;
-            font-size: 0.9em;
-        }
-
-        .badge.one-time {
-            background-color: #e6f3ff;
-            color: #1E3A8A;
-        }
-
-        .badge.recurring {
-            background-color: #e6ffe6;
-            color: #15803d;
-        }
-
-        @media (max-width: 768px) {
-            .expense-table {
-                display: none;
-            }
-            .expense-card {
-                display: block;
-                background: var(--card-bg);
-                border: 1px solid var(--border);
-                border-radius: 8px;
-                padding: 15px;
-                margin-bottom: 10px;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            }
-            .expense-card div {
-                margin-bottom: 8px;
-            }
-            .expense-card .actions {
-                display: flex;
-                gap: 10px;
-            }
-            .summary-cards {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
 </head>
-<body>
+<body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <nav class="navbar">
         <div class="logo">Expense Tracker</div>
         <ul class="nav-links">
@@ -671,6 +366,137 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+        <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+        <script>
+            function exportData(type) {
+                let data = [];
+                let table = document.querySelector('table');
+                let headers = ['Date', 'Amount', 'Category', 'Description', 'Type', 'Frequency', 'Payment Method', 'Merchant'];
+
+                if (type === 'filtered' && table) {
+                    let rows = table.querySelectorAll('tbody tr');
+                    rows.forEach(row => {
+                        let rowData = {};
+                        row.querySelectorAll('td:not(:last-child)').forEach((cell, index) => {
+                            rowData[headers[index]] = cell.textContent.trim();
+                        });
+                        data.push(rowData);
+                    });
+                } else if (type === 'all') {
+                    <?php
+                    $all_expenses_query = $conn->query("SELECT e.*, c.name AS category_name 
+                        FROM expenses e 
+                        LEFT JOIN categories c ON e.category_id = c.id 
+                        WHERE e.user_id = $user_id");
+                    $one_time_all = $all_expenses_query->fetch_all(MYSQLI_ASSOC);
+                    foreach ($one_time_all as $exp) {
+                        $exp['is_recurring'] = false;
+                        $exp['type'] = 'One-Time';
+                        $exp['frequency'] = null;
+                        echo "data.push({
+                            'Date': '{$exp['date']}',
+                            'Amount': '{$exp['amount']}',
+                            'Category': '" . ($exp['category_name'] ?? 'N/A') . "',
+                            'Description': '{$exp['description']}',
+                            'Type': 'One-Time',
+                            'Frequency': '',
+                            'Payment Method': '{$exp['payment_method']}',
+                            'Merchant': '" . ($exp['merchant'] ?? 'N/A') . "'
+                        });";
+                    }
+                    $rec_all_query = $conn->prepare("SELECT r.*, c.name AS category_name 
+                        FROM recurring_expenses r 
+                        LEFT JOIN categories c ON r.category_id = c.id 
+                        WHERE r.user_id = ?");
+                    $rec_all_query->bind_param('i', $user_id);
+                    $rec_all_query->execute();
+                    $rec_all_rules = $rec_all_query->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $one_time_lookup_all = [];
+                    foreach ($one_time_all as $expense) {
+                        $key = $expense['date'] . '_' . ($expense['category_id'] ?? 'N/A');
+                        $one_time_lookup_all[$key] = $expense;
+                    }
+                    $unique_recurring_all = [];
+                    foreach ($rec_all_rules as $rule) {
+                        $current_date = new DateTime($rule['start_date']);
+                        $rule_end_date = !empty($rule['end_date']) ? new DateTime($rule['end_date']) : new DateTime();
+                        $interval = match (strtolower($rule['frequency'])) {
+                            'daily' => new DateInterval('P1D'),
+                            'weekly' => new DateInterval('P1W'),
+                            'monthly' => new DateInterval('P1M'),
+                            'yearly' => new DateInterval('P1Y'),
+                            default => new DateInterval('P1M'),
+                        };
+                        while ($current_date <= $rule_end_date) {
+                            $date_key = $current_date->format('Y-m-d') . '_' . ($rule['category_id'] ?? 'N/A');
+                            if (!isset($unique_recurring_all[$date_key])) {
+                                if (isset($one_time_lookup_all[$date_key]) && 
+                                    $one_time_lookup_all[$date_key]['amount'] == $rule['amount'] && 
+                                    similar_text($one_time_lookup_all[$date_key]['description'], $rule['description']) > 70) {
+                                    $unique_recurring_all[$date_key] = true;
+                                } else {
+                                    $unique_recurring_all[$date_key] = true;
+                                    echo "data.push({
+                                        'Date': '{$current_date->format('Y-m-d')}',
+                                        'Amount': '{$rule['amount']}',
+                                        'Category': '" . ($rule['category_name'] ?? 'N/A') . "',
+                                        'Description': '{$rule['description']}',
+                                        'Type': 'Recurring',
+                                        'Frequency': '{$rule['frequency']}',
+                                        'Payment Method': '{$rule['payment_method']}',
+                                        'Merchant': '" . ($rule['merchant'] ?? 'N/A') . "'
+                                    });";
+                                }
+                            }
+                            $current_date->add($interval);
+                        }
+                    }
+                    ?>
+                }
+
+                let csv = Papa.unparse(data);
+                let csvBlob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                let csvLink = document.createElement('a');
+                csvLink.href = URL.createObjectURL(csvBlob);
+                csvLink.download = `expenses_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+                csvLink.click();
+
+                let element = document.createElement('div');
+                element.innerHTML = '<h2>Expense Report</h2><table><thead><tr>' + 
+                    headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>' + 
+                    data.map(row => `<tr>${headers.map(h => `<td>${row[h] || 'N/A'}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+                html2pdf().from(element).save(`expenses_${type}_${new Date().toISOString().split('T')[0]}.pdf`);
+            }
+
+            // Initialize pie chart
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['One-Time', 'Recurring'],
+                    datasets: [{
+                        data: [<?php echo $total_one_time; ?>, <?php echo $total_recurring; ?>],
+                        backgroundColor: ['#1E3A8A', '#15803d'],
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                    },
+                },
+            });
+        </script>
+    </div>
+</body>
+</html>        <?php if (!in_array(basename($_SERVER['PHP_SELF']), ['login.php', 'register.php', 'logout.php'])) {
+            include 'footer.html';
+        } ?>
+        </div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+        <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
         <script>
             function exportData(type) {
                 let data = [];

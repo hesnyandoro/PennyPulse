@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'includes/theme_handler.php';
 
 // Check user session
 $user = null;
@@ -11,19 +12,7 @@ if (isset($_SESSION['user_id'])) {
     $stmt->bind_param('i', $user_id);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
-    $query = "SELECT theme FROM user_settings WHERE user_id = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $settings_result = $stmt->get_result();
-    $settings = $settings_result->fetch_assoc();
-    if (!$settings) {
-        $query = "INSERT INTO user_settings (user_id, theme) VALUES (?, 'light')";
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param('i', $user_id);
-        $stmt->execute();
-        $settings = ['theme' => 'light'];
-    }
+    $settings = getUserTheme($conn, $user_id);
 }
 ?>
 
@@ -90,38 +79,6 @@ if (isset($_SESSION['user_id'])) {
         <?php include 'footer.html'; ?>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const themeToggle = document.getElementById('theme-toggle');
-            const body = document.body;
-
-            // Apply saved theme from localStorage if available
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme) {
-                body.className = savedTheme;
-                if (themeToggle) {
-                    const icon = themeToggle.querySelector('i');
-                    icon.className = savedTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
-                }
-            }
-
-            // Theme toggle functionality
-            if (themeToggle) {
-                themeToggle.addEventListener('click', () => {
-                    const newTheme = body.classList.contains('light') ? 'dark' : 'light';
-                    body.className = newTheme;
-                    localStorage.setItem('theme', newTheme);
-                    const icon = themeToggle.querySelector('i');
-                    icon.className = newTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
-                    // Save theme preference to server
-                    fetch('api/update_theme.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ theme: newTheme })
-                    }).catch(error => console.error('Error updating theme:', error));
-                });
-            }
-        });
-    </script>
+    <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
 </body>
 </html>

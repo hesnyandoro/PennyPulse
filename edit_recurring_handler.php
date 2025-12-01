@@ -1,9 +1,9 @@
 <?php
-require 'config.php';
+require_once 'config.php';
 
 session_start();
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 

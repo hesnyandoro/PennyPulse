@@ -1,8 +1,8 @@
 <?php
-require 'config.php';
+require_once 'config.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: auth.php?form=login');
     exit;
 }
 
@@ -50,6 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 // Fetch categories for the dropdown
 $categories = $conn->query("SELECT id, name FROM categories WHERE user_id IS NULL OR user_id=$user_id");
+
+// Fetch user data
+$stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
+$stmt->bind_param('i', $user_id);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
+
+// Fetch theme settings
+$settings = getUserTheme($conn, $user_id);
 ?>
 
 <!DOCTYPE html>
@@ -57,9 +66,29 @@ $categories = $conn->query("SELECT id, name FROM categories WHERE user_id IS NUL
 <head>
     <meta charset="UTF-8">
     <title>Edit Expense</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
 </head>
-<body>
+<body class="<?php echo htmlspecialchars($settings['theme']); ?>">
+    <nav class="navbar">
+        <div class="logo">Expense Tracker</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
+            <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
+            <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
+            <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+        <div class="user-profile">
+            <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+            <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
+            <button id="theme-toggle" class="theme-toggle">
+                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-sun' : 'fa-moon'; ?>"></i>
+            </button>
+            <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </nav>
     <div class="container">
         <h1>Edit Expense</h1>
         <?php if (isset($error)) echo "<p class='error-message'>$error</p>"; ?>
@@ -99,5 +128,7 @@ $categories = $conn->query("SELECT id, name FROM categories WHERE user_id IS NUL
         </form>
         <a href="view_expenses.php" class="back-link">Back to Expenses</a>
     </div>
+    <?php include 'footer.html'; ?>
+    <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require 'config.php';
+require_once 'includes/theme_handler.php';
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -9,7 +10,7 @@ $csrf_token = $_SESSION['csrf_token'];
 
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: auth.php?form=login");
     exit;
 }
 
@@ -34,21 +35,7 @@ if (!$user) {
 }
 
 // Fetch user settings
-$stmt = $conn->prepare("SELECT theme, language, email_notifications, in_app_notifications FROM user_settings WHERE user_id = ?");
-if (!$stmt) {
-    error_log("Prepare failed: " . $conn->error);
-    die("An internal server error occurred.");   
-
-}
-$stmt->bind_param("i", $user_id);
-if (!$stmt->execute()) {
-    error_log("Execute failed: " . $stmt->error); 
-    die("An internal server error occurred.");   
-}
-$settings = $stmt->get_result()->fetch_assoc();
-if (!$settings) {
-    $settings = ['theme' => 'light', 'language' => 'en', 'email_notifications' => 1, 'in_app_notifications' => 1];
-}
+$settings = getUserTheme($conn, $user_id);
 ?>
 
 <!DOCTYPE html>
@@ -57,7 +44,7 @@ if (!$settings) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <title>Settings - Expense Tracker</title>
     <style>
         body {
@@ -131,7 +118,7 @@ if (!$settings) {
         .success { background: #ccffcc; }
     </style>
 </head>
-<body>
+<body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <!-- Navbar -->
         <nav class="navbar">
             <div class="logo">Expense Tracker</div>
@@ -224,6 +211,7 @@ if (!$settings) {
         </div>
     </div>
 
+    <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
     <script>
         // Form submission handlers
         async function submitForm(formId, url, messageDivId) {
@@ -293,7 +281,7 @@ async function deleteAccount() {
         if (result.success) {
             messageDiv.className = 'success';
             messageDiv.textContent = 'Account deleted successfully. Redirecting...';
-            setTimeout(() => window.location.href = 'login.php', 2000);
+            setTimeout(() => window.location.href = 'auth.php?form=login', 2000);
         } else {
             messageDiv.className = 'error';
             messageDiv.textContent = result.error;
@@ -304,26 +292,6 @@ async function deleteAccount() {
         console.error('Fetch error:', error); 
     }
 }
-
-        document.getElementById('theme-toggle').addEventListener('click', async function() {
-            const currentTheme = '<?php echo $settings['theme']; ?>';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            const formData = new FormData();
-            formData.append('theme', newTheme);
-            formData.append('csrf_token', '<?php echo $csrf_token; ?>');
-            try {
-                const response = await fetch('update_settings.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                if (result.success) {
-                    location.reload();
-                }
-            } catch (error) {
-                alert('Failed to change theme.');
-            }
-        });
     </script>
 </body>
 </html>
