@@ -109,11 +109,11 @@ $remaining = $total_budget - $total_spent;
             <div class="stats">
                 <div class="stat-card">
                     <h3>Total Spent This Week</h3>
-                    <p>$<?php echo number_format($total, 2); ?></p>
+                    <p>KES&nbsp;<?php echo number_format($total, 2); ?></p>
                 </div>
                 <div class="stat-card">
                     <h3>Budget Remaining</h3>
-                    <p>$<?php echo number_format($remaining, 2); ?></p>
+                    <p>KES&nbsp;<?php echo number_format($remaining, 2); ?></p>
                 </div>
             </div>
             <div class="budget-overview">
@@ -131,7 +131,7 @@ $remaining = $total_budget - $total_spent;
                                         <div class="progress" style="width: <?php echo min($percentage, 100); ?>%;"></div>
                                     </div>
                                     <div class="status">
-                                        $<?php echo number_format($budget['spent'], 2); ?> / $<?php echo number_format($budget['budget_amount'], 2); ?>
+                                        KES&nbsp;<?php echo number_format($budget['spent'], 2); ?> / KES&nbsp;<?php echo number_format($budget['budget_amount'], 2); ?>
                                         (<?php echo round($percentage, 1); ?>%)
                                     </div>
                                 </div>
@@ -161,7 +161,7 @@ $remaining = $total_budget - $total_spent;
                                     <td><?php echo htmlspecialchars($expense['date']); ?></td>
                                     <td><?php echo htmlspecialchars($expense['category']); ?></td>
                                     <td><?php echo htmlspecialchars($expense['description']); ?></td>
-                                    <td>$<?php echo number_format($expense['amount'], 2); ?></td>
+                                    <td>KES&nbsp;<?php echo number_format($expense['amount'], 2); ?></td>
                                     <td><a href="add_expense.php?id=<?php echo $expense['id']; ?>" class="btn">Edit</a></td>
                                 </tr>
                             <?php } ?>

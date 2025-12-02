@@ -1,9 +1,7 @@
 <?php
 error_log("set_budget.php script started.");
-// Start output buffering to prevent header issues
 ob_start();
 
-// Ensure session is started
 session_start();
 
 // Include configuration
@@ -410,16 +408,16 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
             </form>
 
             <!-- Summary Metrics -->
-            <div class="summary-metrics">
-                <div class="metric-card">
+            <div class="summary-cards">
+                <div class="summary-card">
                     <h3>Total Budgeted</h3>
-                    <p>$<?php echo number_format($total_budgeted, 2); ?></p>
+                    <p>KES&nbsp;<?php echo number_format($total_budgeted, 2); ?></p>
                 </div>
-                <div class="metric-card">
+                <div class="summary-card">
                     <h3>Total Spent</h3>
-                    <p>$<?php echo number_format($total_spent, 2); ?></p>
+                    <p>KES&nbsp;<?php echo number_format($total_spent, 2); ?></p>
                 </div>
-                <div class="metric-card">
+                <div class="summary-card">
                     <h3>Budgets Nearing Limit</h3>
                     <p><?php echo $budgets_at_risk; ?></p>
                 </div>
@@ -438,9 +436,9 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
                     <?php foreach ($budgets as $budget) { ?>
                         <div class="budget-card bento-box <?php echo $budget['status']; ?>">
                             <h3><?php echo htmlspecialchars($budget['category_name']); ?> (<?php echo date('F Y', strtotime($budget['month'])); ?>)</h3>
-                            <p>Budget: $<?php echo number_format($budget['budget_amount'], 2); ?></p>
-                            <p>Spent: $<?php echo number_format($budget['spent'], 2); ?></p>
-                            <p>Remaining: $<?php echo number_format($budget['remaining'], 2); ?></p>
+                            <p>Budget: KES&nbsp;<?php echo number_format($budget['budget_amount'], 2); ?></p>
+                            <p>Spent: KES&nbsp;<?php echo number_format($budget['spent'], 2); ?></p>
+                            <p>Remaining: KES&nbsp;<?php echo number_format($budget['remaining'], 2); ?></p>
                             <?php if ($budget['status'] === 'near_limit' || $budget['status'] === 'over_budget') { ?>
                                 <p class="warning-message">
                                     <?php echo $budget['status'] === 'near_limit' ? 'Warning: Nearing limit!' : 'Alert: Over budget!'; ?>

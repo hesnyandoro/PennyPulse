@@ -10,9 +10,9 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $upload_dir = 'uploads/receipts/';
 
-// =================================================================
+
 // STEP 1: DETERMINE MODE (ADD VS. EDIT) & INITIALIZE VARIABLES
-// =================================================================
+
 
 $mode = 'add';
 $page_title = 'ADD NEW EXPENSE';
@@ -67,9 +67,7 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
 }
 
 
-// =================================================================
-// STEP 2: HANDLE FORM SUBMISSION (FOR BOTH ADD AND EDIT)
-// =================================================================
+//  HANDLE FORM SUBMISSION (FOR BOTH ADD AND EDIT)
 
 $error_message = '';
 $budget_warning = '';
@@ -82,6 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $category_id = $_POST['category_id'] ?? '';
     $payment_method = $_POST['payment_method'] ?? '';
     $date = $_POST['date'] ?? '';
+    $is_recurring_checked = isset($_POST['is_recurring']);
+    $frequency_post = $_POST['frequency'] ?? '';
+    $recurring_end_date = $_POST['recurring_end_date'] ?? '';
     
     // Handle receipt upload
     $receipt_path = null;
@@ -108,35 +109,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'Looks like you missed a required field—let’s try again!';
     } elseif (!is_numeric($amount) || $amount <= 0) {
         $error_message = 'Amount must be a positive number. Please check and try again.';
+    } elseif ($is_recurring_checked && empty($frequency_post)) {
+        $error_message = 'Please select a frequency for the recurring expense.';
     }
 
     if (empty($error_message)) {
-        // If an ID was posted, we are in 'edit' mode
-        if ($post_id) {
+        // If an ID was posted, we are in 'edit' mode (one-time only in this scope)
+        if ($post_id && !$is_recurring_checked) {
             $sql = "UPDATE expenses SET amount=?, description=?, category_id=?, payment_method=?, date=?, receipt_path=? WHERE id=? AND user_id=?";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("dsissisi", $amount, $description, $category_id, $payment_method, $date, $receipt_path, $post_id, $user_id);
+            if ($stmt->execute()) {
+                header('Location: dashboard.php?success=Expense updated!');
+                exit;
+            } else {
+                $error_message = 'Failed to update expense: ' . $stmt->error;
+            }
         }
-        // Otherwise, we are in 'add' mode
+        // Add recurring rule if checkbox checked
+        elseif ($is_recurring_checked) {
+            // Normalize frequency to allowed enum values (Title case)
+            $allowed = ['Daily','Weekly','Monthly','Yearly'];
+            $freq_title = ucfirst(strtolower($frequency_post));
+            if (!in_array($freq_title, $allowed, true)) {
+                $error_message = 'Invalid frequency selected.';
+            } else {
+                $sql = "INSERT INTO recurring_expenses (user_id, category_id, description, amount, payment_method, frequency, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $conn->prepare($sql);
+                $end = !empty($recurring_end_date) ? $recurring_end_date : null;
+                $stmt->bind_param("iisdssss", $user_id, $category_id, $description, $amount, $payment_method, $freq_title, $date, $end);
+
+                if ($stmt->execute()) {
+                    header('Location: view_expenses.php?success=Recurring+expense+created');
+                    exit;
+                } else {
+                    $error_message = 'Failed to save recurring expense: ' . $stmt->error;
+                }
+            }
+        }
+        // Otherwise, add a one-time expense
         else {
             $sql = "INSERT INTO expenses (user_id, amount, description, category_id, payment_method, date, receipt_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("idssiss", $user_id, $amount, $description, $category_id, $payment_method, $date, $receipt_path);
-        }
 
-        if ($stmt->execute()) {
-            header('Location: dashboard.php?success=Action successful!');
-            exit;
-        } else {
-            $error_message = 'Failed to save expense: ' . $stmt->error;
+            if ($stmt->execute()) {
+                header('Location: dashboard.php?success=Expense+saved');
+                exit;
+            } else {
+                $error_message = 'Failed to save expense: ' . $stmt->error;
+            }
         }
     }
 }
 
 
-// =================================================================
-// STEP 3: FETCH DATA FOR THE PAGE (USER, SETTINGS, CATEGORIES)
-// =================================================================
+
+// FETCH DATA FOR THE PAGE (USER, SETTINGS, CATEGORIES)
 
 // Fetch user data
 $stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
@@ -185,7 +214,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             </div>
         </nav>
 
-        <div class="add-expense-section">
+        <div class="container">
             <h1 class="page-title"><?php echo htmlspecialchars($page_title); ?></h1>
 
             <?php if ($error_message): ?>
@@ -197,77 +226,87 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <input type="hidden" name="expense_id" value="<?php echo htmlspecialchars($expense_id); ?>">
                 <?php endif; ?>
 
-                <div class="bento-grid">
-                    <div class="bento-box primary-box">
+                <!-- Main Input Fields Card -->
+                <div class="expense-card main-fields-card">
+                    <div class="form-group">
+                        <label for="amount">Amount <span class="required">*</span></label>
+                        <input type="number" name="amount" id="amount" step="0.01" required placeholder="Enter amount" value="<?php echo htmlspecialchars($amount); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="category_id">Category <span class="required">*</span></label>
+                        <select name="category_id" id="category_id" required>
+                            <option value="">Select Category</option>
+                            <?php foreach ($categories as $category): ?>
+                                <option value="<?php echo $category['id']; ?>" <?php if ($category['id'] == $category_id) echo 'selected'; ?>>
+                                    <?php echo htmlspecialchars($category['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="payment_method">Payment Method <span class="required">*</span></label>
+                        <select name="payment_method" id="payment_method" required>
+                            <option value="">Select Payment Method</option>
+                            <?php $methods = ['cash' => 'Cash', 'credit_card' => 'Credit Card', 'debit_card' => 'Debit Card', 'mobile_payment' => 'Mobile Payment']; ?>
+                            <?php foreach ($methods as $value => $label): ?>
+                                <option value="<?php echo $value; ?>" <?php if ($value == $payment_method) echo 'selected'; ?>>
+                                    <?php echo $label; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="date">Date <span class="required">*</span></label>
+                        <input type="date" name="date" id="date" value="<?php echo htmlspecialchars($date); ?>" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea name="description" id="description" rows="3" placeholder="Enter description"><?php echo htmlspecialchars($description); ?></textarea>
+                    </div>
+
+                    <?php if ($mode === 'add'): ?>
                         <div class="form-group">
-                            <label for="amount">Amount <span class="required">*</span></label>
-                            <div class="input-wrapper">
-                                <input type="number" name="amount" id="amount" step="0.01" required placeholder="Enter amount" value="<?php echo htmlspecialchars($amount); ?>">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="category_id">Category <span class="required">*</span></label>
-                            <div class="input-wrapper">
-                                <select name="category_id" id="category_id" required>
-                                    <option value="">Select Category</option>
-                                    <?php foreach ($categories as $category): ?>
-                                        <option value="<?php echo $category['id']; ?>" <?php if ($category['id'] == $category_id) echo 'selected'; ?>>
-                                            <?php echo htmlspecialchars($category['name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="payment_method">Payment Method <span class="required">*</span></label>
-                            <div class="input-wrapper">
-                                <select name="payment_method" id="payment_method" required>
-                                    <option value="">Select Payment Method</option>
-                                    <?php $methods = ['cash' => 'Cash', 'credit_card' => 'Credit Card', 'debit_card' => 'Debit Card', 'mobile_payment' => 'Mobile Payment']; ?>
-                                    <?php foreach ($methods as $value => $label): ?>
-                                        <option value="<?php echo $value; ?>" <?php if ($value == $payment_method) echo 'selected'; ?>>
-                                            <?php echo $label; ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="date">Date <span class="required">*</span></label>
-                            <div class="input-wrapper">
-                                <input type="date" name="date" id="date" value="<?php echo htmlspecialchars($date); ?>" required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="description">Description</label>
-                            <div class="input-wrapper">
-                                <textarea name="description" id="description" placeholder="Enter description"><?php echo htmlspecialchars($description); ?></textarea>
-                            </div>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="is_recurring" id="is_recurring"> Is this a recurring expense?
+                            </label>
                         </div>
 
-                        <?php if ($mode === 'add'): ?>
+                        <div id="recurring-fields" class="recurring-fields" style="display:none;">
                             <div class="form-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="is_recurring" id="is_recurring"> Is this a recurring expense?
-                                </label>
+                                <label for="frequency">Frequency <span class="required">*</span></label>
+                                <select name="frequency" id="frequency">
+                                    <option value="">Select Frequency</option>
+                                    <option value="Daily">Daily</option>
+                                    <option value="Weekly">Weekly</option>
+                                    <option value="Monthly" selected>Monthly</option>
+                                    <option value="Yearly">Yearly</option>
+                                </select>
                             </div>
-                        <?php endif; ?>
-                    </div>
+                            <div class="form-group">
+                                <label for="recurring_end_date">End Date (optional)</label>
+                                <input type="date" name="recurring_end_date" id="recurring_end_date" value="<?php echo htmlspecialchars($end_date); ?>">
+                                <small class="form-hint">Leave empty for an open-ended recurring expense.</small>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
+                <!-- Upload Receipt Card -->
                 <?php if ($mode === 'add'): ?>
-                    <div class="bento-grid">
-                        <div class="bento-box secondary-box">
-                            <div class="form-group">
-                                <label for="receipt">Upload Receipt</label>
-                                <div class="input-wrapper">
-                                    <input type="file" name="receipt" id="receipt" accept="image/*,application/pdf">
-                                </div>
-                            </div>
+                    <div class="expense-card receipt-card">
+                        <div class="form-group">
+                            <label for="receipt">Upload Receipt</label>
+                            <input type="file" name="receipt" id="receipt" accept="image/*,application/pdf">
+                            <small class="form-hint">Supported formats: JPG, PNG, PDF</small>
                         </div>
                     </div>
                 <?php endif; ?>
 
+                <!-- Action Buttons -->
                 <div class="form-actions">
                     <button type="submit" class="save-btn" id="save-btn">
                         <span class="btn-text"><?php echo ($mode === 'edit') ? 'Update Expense' : 'Save Expense'; ?></span>
@@ -280,5 +319,19 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         <?php include 'footer.html'; ?>
     </div>
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script>
+        
+        // Toggle recurring fields visibility
+        (function() {
+            const chk = document.getElementById('is_recurring');
+            const box = document.getElementById('recurring-fields');
+            if (!chk || !box) return;
+            function sync() {
+                box.style.display = chk.checked ? 'block' : 'none';
+            }
+            chk.addEventListener('change', sync);
+            sync();
+        })();
+    </script>
 </body>
 </html>

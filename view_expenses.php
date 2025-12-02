@@ -102,26 +102,31 @@ if ($filter_type === 'All' || $filter_type === 'Recurring') {
             default => new DateInterval('P1M'),
         };
 
+        // Fast-forward to the first occurrence on/after the view start date to avoid long loops
+        while ($current_date < $view_start_date) {
+            $current_date->add($interval);
+            if ($current_date > $rule_end_date) {
+                break;
+            }
+        }
+
         while ($current_date <= $rule_end_date && $current_date <= $view_end_date) {
-            if ($current_date >= $view_start_date) {
-                $date_key = $rule['id'] . '_' . $current_date->format('Y-m-d');
-                // Skip if this date is marked as an exception
-                if (!isset($exception_map[$date_key])) {
-                    $instance_id = 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd');
-                    $generated_recurring[$instance_id] = [
-                        'id' => $instance_id,
-                        'rule_id' => $rule['id'],
-                        'date' => $current_date->format('Y-m-d'),
-                        'amount' => $rule['amount'],
-                        'category_name' => $rule['category_name'],
-                        'description' => $rule['description'],
-                        'payment_method' => $rule['payment_method'],
-                        'merchant' => $rule['merchant'] ?? 'N/A',
-                        'is_recurring' => true,
-                        'type' => 'Recurring',
-                        'frequency' => $rule['frequency'],
-                    ];
-                }
+            $date_key = $rule['id'] . '_' . $current_date->format('Y-m-d');
+            if (!isset($exception_map[$date_key])) {
+                $instance_id = 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd');
+                $generated_recurring[$instance_id] = [
+                    'id' => $instance_id,
+                    'rule_id' => $rule['id'],
+                    'date' => $current_date->format('Y-m-d'),
+                    'amount' => (float)$rule['amount'],
+                    'category_name' => $rule['category_name'] ?? 'N/A',
+                    'description' => $rule['description'],
+                    'payment_method' => $rule['payment_method'],
+                    'merchant' => $rule['merchant'] ?? 'N/A',
+                    'is_recurring' => true,
+                    'type' => 'Recurring',
+                    'frequency' => $rule['frequency'],
+                ];
             }
             $current_date->add($interval);
         }
@@ -172,6 +177,28 @@ if ($filter_type === 'All' || $filter_type === 'One-Time') {
 // Step 4: Merge the remaining generated recurring expenses with the one-time/override expenses
 $all_expenses = array_merge($all_expenses, array_values($generated_recurring));
 
+// Step 4b: Deduplicate merged list to avoid duplicate rows on the frontend
+// - For recurring: unique by (rule_id, date)
+// - For one-time: unique by (id)
+$deduped = [];
+$seen = [];
+foreach ($all_expenses as $exp) {
+    $is_rec = isset($exp['is_recurring']) && $exp['is_recurring'];
+    if ($is_rec) {
+        $rid = $exp['rule_id'] ?? '0';
+        $d = $exp['date'] ?? '';
+        $k = 'rec-' . $rid . '-' . $d;
+    } else {
+        $eid = $exp['id'] ?? '0';
+        $k = 'one-' . $eid;
+    }
+    if (!isset($seen[$k])) {
+        $seen[$k] = true;
+        $deduped[] = $exp;
+    }
+}
+$all_expenses = $deduped;
+
 // Step 5: Sort the final combined list
 $sort_key = ($sort === 'category_id') ? 'category_name' : $sort;
 usort($all_expenses, function ($a, $b) use ($sort_key, $order) {
@@ -208,9 +235,20 @@ foreach ($all_expenses as $exp) {
 }
 $total_expenses = $total_one_time + $total_recurring;
 
+// Debug helpers (enabled via ?debug=1)
+$debug_enabled = isset($_GET['debug']) && $_GET['debug'] == '1';
+$debug_recurring_rules = isset($recurring_rules) ? count($recurring_rules) : 0;
+$debug_generated_recurring_count = count($generated_recurring);
+$debug_sample_instances = $debug_enabled ? array_slice(array_values($generated_recurring), 0, 5) : [];
+
 // Fetch categories and payment methods
 $categories = $conn->query("SELECT id, name FROM categories WHERE user_id IS NULL OR user_id = $user_id");
-$payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WHERE user_id = $user_id AND payment_method IS NOT NULL");
+// Include payment methods from both one-time and recurring expenses
+$payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
+    SELECT payment_method FROM expenses WHERE user_id = $user_id AND payment_method IS NOT NULL
+    UNION
+    SELECT payment_method FROM recurring_expenses WHERE user_id = $user_id AND payment_method IS NOT NULL
+) pm");
 ?>
 
 <!DOCTYPE html>
@@ -246,59 +284,116 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
     </nav>
 
     <div class="container">
-        <h1>Your Expenses</h1>
+        <h1 style="font-size: 32px; font-weight: 700; color: #1f2937; margin-bottom: 30px; font-family: 'Roboto', sans-serif;">Your Expenses</h1>
 
-        <div class="summary-cards">
-            <div class="summary-card">
-                <h3>Total Expenses</h3>
-                <p>$<?php echo number_format($total_expenses, 2); ?></p>
+        <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 35px;">
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Total Expenses</h3>
+                    <i class="fas fa-wallet" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+                </div>
+                <p style="margin: 0; font-size: 36px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_expenses, 2); ?></p>
             </div>
-            <div class="summary-card">
-                <h3>One-Time Expenses</h3>
-                <p>$<?php echo number_format($total_one_time, 2); ?></p>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">One-Time</h3>
+                    <i class="fas fa-receipt" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+                </div>
+                <p style="margin: 0; font-size: 36px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_one_time, 2); ?></p>
             </div>
-            <div class="summary-card">
-                <h3>Recurring Expenses</h3>
-                <p>$<?php echo number_format($total_recurring, 2); ?></p>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Recurring</h3>
+                    <i class="fas fa-sync-alt" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+                </div>
+                <p style="margin: 0; font-size: 36px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_recurring, 2); ?></p>
             </div>
-            <div class="summary-card">
-                <h3>Top Category</h3>
-                <p><?php echo htmlspecialchars($top_category); ?></p>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Top Category</h3>
+                    <i class="fas fa-star" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+                </div>
+                <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;"><?php echo htmlspecialchars($top_category); ?></p>
             </div>
-            <div class="summary-card">
-                <h3>Expense Breakdown</h3>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Expense Breakdown</h3>
+                    <i class="fas fa-chart-pie" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+                </div>
                 <canvas id="expenseChart" width="200" height="200"></canvas>
             </div>
         </div>
 
-        <form method="GET">
-            <select name="sort">
-                <option value="date" <?php echo $sort === 'date' ? 'selected' : ''; ?>>Date</option>
-                <option value="amount" <?php echo $sort === 'amount' ? 'selected' : ''; ?>>Amount</option>
-                <option value="category_id" <?php echo $sort === 'category_id' ? 'selected' : ''; ?>>Category</option>
-                <option value="type" <?php echo $sort === 'type' ? 'selected' : ''; ?>>Type</option>
-                <option value="frequency" <?php echo $sort === 'frequency' ? 'selected' : ''; ?>>Frequency</option>
-            </select>
-            <select name="order">
-                <option value="ASC" <?php echo $order === 'ASC' ? 'selected' : ''; ?>>Ascending</option>
-                <option value="DESC" <?php echo $order === 'DESC' ? 'selected' : ''; ?>>Descending</option>
-            </select>
-            <select name="type">
-                <option value="All" <?php echo $filter_type === 'All' ? 'selected' : ''; ?>>All Types</option>
-                <option value="One-Time" <?php echo $filter_type === 'One-Time' ? 'selected' : ''; ?>>One-Time</option>
-                <option value="Recurring" <?php echo $filter_type === 'Recurring' ? 'selected' : ''; ?>>Recurring</option>
-            </select>
-            <select name="category">
-                <option value="">All Categories</option>
-                <?php $categories->data_seek(0); while ($cat = $categories->fetch_assoc()) echo "<option value='{$cat['id']}' " . ($filter_category == $cat['id'] ? 'selected' : '') . ">{$cat['name']}</option>"; ?>
-            </select>
-            <select name="payment_method">
-                <option value="">All Payment Methods</option>
-                <?php $payment_methods->data_seek(0); while ($method = $payment_methods->fetch_assoc()) echo "<option value='{$method['payment_method']}' " . ($filter_payment_method == $method['payment_method'] ? 'selected' : '') . ">{$method['payment_method']}</option>"; ?>
-            </select>
-            <input type="date" name="date_start" value="<?php echo htmlspecialchars($view_start_date->format('Y-m-d')); ?>">
-            <input type="date" name="date_end" value="<?php echo htmlspecialchars($view_end_date->format('Y-m-d')); ?>">
-            <button type="submit">Filter</button>
+        <?php if ($debug_enabled): ?>
+            <div style="margin:16px 0;padding:12px;border:1px dashed #888;border-radius:8px;background:#f9fafb;color:#111;">
+                <strong>Debug:</strong>
+                <div>View range: <?php echo htmlspecialchars($view_start_date->format('Y-m-d')); ?> → <?php echo htmlspecialchars($view_end_date->format('Y-m-d')); ?></div>
+                <div>Recurring rules matched: <?php echo (int)$debug_recurring_rules; ?></div>
+                <div>Generated recurring instances in range: <?php echo (int)$debug_generated_recurring_count; ?></div>
+                <?php if (!empty($debug_sample_instances)): ?>
+                    <div>Sample instances (up to 5):</div>
+                    <ul style="margin:6px 0 0 16px;">
+                        <?php foreach ($debug_sample_instances as $inst): ?>
+                            <li>#<?php echo htmlspecialchars($inst['rule_id']); ?> @ <?php echo htmlspecialchars($inst['date']); ?> • <?php echo htmlspecialchars($inst['frequency']); ?> • KES&nbsp;<?php echo htmlspecialchars(number_format($inst['amount'], 2)); ?> • <?php echo htmlspecialchars($inst['payment_method'] ?? 'N/A'); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <form method="GET" style="background: #FFFFFF; padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 25px;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Sort By</label>
+                    <select name="sort" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                        <option value="date" <?php echo $sort === 'date' ? 'selected' : ''; ?>>Date</option>
+                        <option value="amount" <?php echo $sort === 'amount' ? 'selected' : ''; ?>>Amount</option>
+                        <option value="category_id" <?php echo $sort === 'category_id' ? 'selected' : ''; ?>>Category</option>
+                        <option value="type" <?php echo $sort === 'type' ? 'selected' : ''; ?>>Type</option>
+                        <option value="frequency" <?php echo $sort === 'frequency' ? 'selected' : ''; ?>>Frequency</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Order</label>
+                    <select name="order" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                        <option value="ASC" <?php echo $order === 'ASC' ? 'selected' : ''; ?>>Ascending</option>
+                        <option value="DESC" <?php echo $order === 'DESC' ? 'selected' : ''; ?>>Descending</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Type</label>
+                    <select name="type" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                        <option value="All" <?php echo $filter_type === 'All' ? 'selected' : ''; ?>>All Types</option>
+                        <option value="One-Time" <?php echo $filter_type === 'One-Time' ? 'selected' : ''; ?>>One-Time</option>
+                        <option value="Recurring" <?php echo $filter_type === 'Recurring' ? 'selected' : ''; ?>>Recurring</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Category</label>
+                    <select name="category" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                        <option value="">All Categories</option>
+                        <?php $categories->data_seek(0); while ($cat = $categories->fetch_assoc()) echo "<option value='{$cat['id']}' " . ($filter_category == $cat['id'] ? 'selected' : '') . ">{$cat['name']}</option>"; ?>
+                    </select>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 2fr 2fr 1fr; gap: 20px; align-items: end;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Payment Method</label>
+                    <select name="payment_method" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                        <option value="">All Payment Methods</option>
+                        <?php $payment_methods->data_seek(0); while ($method = $payment_methods->fetch_assoc()) echo "<option value='{$method['payment_method']}' " . ($filter_payment_method == $method['payment_method'] ? 'selected' : '') . ">{$method['payment_method']}</option>"; ?>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Start Date</label>
+                    <input type="date" name="date_start" value="<?php echo htmlspecialchars($view_start_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">End Date</label>
+                    <input type="date" name="date_end" value="<?php echo htmlspecialchars($view_end_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                </div>
+                <button type="submit" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; box-sizing: border-box; height: 42px;">Filter</button>
+            </div>
         </form>
 
         <div style="margin-bottom: 20px;">
@@ -307,43 +402,44 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM expenses WH
         </div>
         
         <?php if (count($all_expenses) > 0): ?>
-            <table class="expense-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Amount</th>
-                        <th>Category</th>
-                        <th>Description</th>
-                        <th>Type</th>
-                        <th>Frequency</th>
-                        <th>Payment Method</th>
-                        <th>Merchant</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($all_expenses as $exp): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($exp['date'] ?? 'N/A'); ?></td>
-                            <td>$<?php echo htmlspecialchars(number_format($exp['amount'] ?? 0, 2)); ?></td>
-                            <td><?php echo htmlspecialchars($exp['category_name'] ?? 'N/A'); ?></td>
-                            <td><?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?></td>
-                            <td>
-                                <span class="badge <?php echo $exp['type'] === 'One-Time' ? 'one-time' : 'recurring'; ?>">
-                                    <?php echo $exp['type'] === 'One-Time' ? '⚫' : '🔄'; ?>
-                                    <?php echo htmlspecialchars($exp['type']); ?>
-                                </span>
-                            </td>
-                            <td><?php echo htmlspecialchars($exp['frequency'] ?? '-'); ?></td>
-                            <td><?php echo htmlspecialchars($exp['payment_method'] ?? 'N/A'); ?></td>
-                            <td><?php echo htmlspecialchars($exp['merchant'] ?? 'N/A'); ?></td>
-                            <td>
+            <div style="overflow-x: auto;">
+                <table class="expense-table" style="width: 100%; table-layout: fixed; border-collapse: collapse; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); font-family: 'Roboto', sans-serif;">
+                    <thead>
+                        <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 9%; font-family: 'Roboto', sans-serif;">Date</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 11%; font-family: 'Roboto', sans-serif;">Amount</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 11%; font-family: 'Roboto', sans-serif;">Category</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 16%; font-family: 'Roboto', sans-serif;">Description</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 12%; font-family: 'Roboto', sans-serif;">Type</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 9%; font-family: 'Roboto', sans-serif;">Frequency</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 13%; font-family: 'Roboto', sans-serif;">Payment Method</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 10%; font-family: 'Roboto', sans-serif;">Merchant</th>
+                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 9%; font-family: 'Roboto', sans-serif;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($all_expenses as $exp): ?>
+                            <tr style="border-bottom: 1px solid #f3f4f6;">
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['date'] ?? 'N/A'); ?></td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Roboto', sans-serif; font-weight: 400;">KES&nbsp;<?php echo htmlspecialchars(number_format($exp['amount'] ?? 0, 2)); ?></td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['category_name'] ?? 'N/A'); ?></td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;" title="<?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?>"><?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?></td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif;">
+                                    <span class="badge <?php echo $exp['type'] === 'One-Time' ? 'one-time' : 'recurring'; ?>" style="display: inline-block; font-size: 13px; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;">
+                                        <?php echo $exp['type'] === 'One-Time' ? '⚫' : '🔄'; ?>
+                                        <?php echo htmlspecialchars($exp['type']); ?>
+                                    </span>
+                                </td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['frequency'] ?? '-'); ?></td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['payment_method'] ?? 'N/A'); ?></td>
+                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['merchant'] ?? 'N/A'); ?></td>
+                                <td style="padding: 12px 10px; color: #374151; font-size: 13px; white-space: nowrap;">
     <?php if (isset($exp['is_recurring']) && $exp['is_recurring']): ?>
-        <a href="edit_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn edit-btn">Edit</a>
-        <a href="delete_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this single instance?');">Delete</a>
+        <a href="edit_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn edit-btn" style="font-size: 14px; padding: 6px 10px; display: inline-block; margin-right: 5px;" title="Edit"><i class="fas fa-edit"></i></a>
+        <a href="delete_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this single instance?');" style="font-size: 14px; padding: 6px 10px; display: inline-block;" title="Delete"><i class="fas fa-trash"></i></a>
     <?php else: ?>
-        <a href="add_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn">Edit</a>
-        <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');">Delete</a>
+        <a href="add_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn" style="font-size: 14px; padding: 6px 10px; display: inline-block; margin-right: 5px;" title="Edit"><i class="fas fa-edit"></i></a>
+        <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');" style="font-size: 14px; padding: 6px 10px; display: inline-block;" title="Delete"><i class="fas fa-trash"></i></a>
     <?php endif; ?>
 </td>
                         </tr>

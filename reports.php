@@ -241,13 +241,13 @@ if ($total_budgeted > 0) {
 $insights = [];
 if ($top_category !== 'N/A' && $total_spent > 0) {
     if ($average_daily > 100) {
-        $insights[] = "Your average daily spending is high ($" . number_format($average_daily, 2) . "). Consider reviewing discretionary expenses.";
+        $insights[] = "Your average daily spending is high (KES " . number_format($average_daily, 2) . "). Consider reviewing discretionary expenses.";
     }
     if (($category_breakdown[$top_category] / $total_spent) > 0.5) {
         $insights[] = "Over 50% of your spending is in $top_category. Diversify your spending or set a stricter budget.";
     }
     if ($total_spent_in_budgeted_categories > $total_budgeted) {
-        $insights[] = "You’ve exceeded your overall budget by $" . number_format($total_spent_in_budgeted_categories - $total_budgeted, 2) . ". Reduce spending in over-budget categories.";
+        $insights[] = "You’ve exceeded your overall budget by KES " . number_format($total_spent_in_budgeted_categories - $total_budgeted, 2) . ". Reduce spending in over-budget categories.";
     }
 }
 ?>
@@ -335,11 +335,11 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
         <div class="summary-cards">
             <div class="bento-card summary-card">
                 <h2>Total Spent</h2>
-                <p>$<?php echo number_format($total_spent, 2); ?></p>
+                <p>KES&nbsp;<?php echo number_format($total_spent, 2); ?></p>
             </div>
             <div class="bento-card summary-card">
                 <h2>Average Daily Spending</h2>
-                <p>$<?php echo number_format($average_daily, 2); ?></p>
+                <p>KES&nbsp;<?php echo number_format($average_daily, 2); ?></p>
             </div>
             <div class="bento-card summary-card">
                 <h2>Top Category</h2>
@@ -372,8 +372,8 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
                     <thead>
                         <tr>
                             <th>Category</th>
-                            <th>Spent ($)</th>
-                            <th>Budget ($)</th>
+                            <th>Spent (KES)</th>
+                            <th>Budget (KES)</th>
                             <th>Progress</th>
                         </tr>
                     </thead>
@@ -505,11 +505,12 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
                                     let value = context.raw || 0;
                                     let total = context.dataset.data.reduce((sum, val) => sum + val, 0);
                                     let percentage = ((value / total) * 100).toFixed(2);
-                                    return `${label}: $${value.toFixed(2)} (${percentage}%)`; // Display exact category name
+                                    return `${label}: KES ${value.toFixed(2)} (${percentage}%)`; // Display exact category name
                                 }
                             }
                         }
                     }
+                }
             });
 
             const lineCtx = document.getElementById('expenseLineGraph').getContext('2d');
@@ -536,14 +537,14 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     let value = context.raw || 0;
-                                    return `${label}: $${value.toFixed(2)}`;
+                                    return `${label}: KES ${value.toFixed(2)}`;
                                 }
                             }
                         }
                     },
                     scales: {
                         x: { title: { display: true, text: 'Date', color: '' }, grid: { color: '' }, ticks: { color: '' } },
-                        y: { title: { display: true, text: 'Amount ($)', color: '' }, beginAtZero: true, grid: { color: '' }, ticks: { color: '' } }
+                        y: { title: { display: true, text: 'Amount (KES)', color: '' }, beginAtZero: true, grid: { color: '' }, ticks: { color: '' } }
                     }
                 }
             });
