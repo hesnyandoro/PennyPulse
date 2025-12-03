@@ -551,26 +551,27 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
     </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
-    <nav class="navbar">
-        <div class="logo">Expense Tracker</div>
-        <ul class="nav-links">
-            <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
-            <li><a href="view_expenses.php" class="active"><i class="fas fa-list"></i> View Expenses</a></li>
-            <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
-            <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
-        </ul>
+    <div class="app">
+        <nav class="navbar">
+            <div class="logo">Expense Tracker</div>
+            <ul class="nav-links">
+                <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
+                <li><a href="view_expenses.php" class="active"><i class="fas fa-list"></i> View Expenses</a></li>
+                <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
+                <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+                <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
             <div class="user-profile">
-            <span class="avatar" data-username="<?php echo htmlspecialchars($user['username']); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
-            <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo $settings['theme'] === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
-                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
-            </button>
-            <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i></a>
-        </div>
-    </nav>
+                <span class="avatar" data-username="<?php echo htmlspecialchars($user['username']); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+                <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo $settings['theme'] === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
+                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
+                </button>
+                <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+        </nav>
 
-    <div class="container">
+        <div class="container">
         <h1 class="page-title"><i class="fas fa-list"></i> Your Expenses</h1>
 
         <div class="summary-cards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px;">
@@ -796,15 +797,10 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
                 <a href="add_expense.php" class="add-expense-btn">Add Expense</a>
             </div>
         <?php endif; ?>
-
-        <!-- Footer -->
         </div>
-        <?php if (!in_array(basename($_SERVER['PHP_SELF']), ['login.php', 'register.php', 'logout.php'])) {
-            include 'footer.html';
-        } ?>
-        </div>
-
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+        <?php include 'footer.html'; ?>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
         <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
         <script>
@@ -931,9 +927,6 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
                     data.map(row => `<tr>${headers.map(h => `<td>${row[h] || 'N/A'}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
                 html2pdf().from(element).save(`expenses_${type}_${new Date().toISOString().split('T')[0]}.pdf`);
             }
-
-
         </script>
-    </div>
 </body>
 </html>

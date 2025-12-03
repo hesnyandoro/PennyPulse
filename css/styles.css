@@ -151,10 +151,14 @@ body.dark .feature-card p {
     font-family: 'Roboto', sans-serif;
 }
 
-body {
-    font-family: 'Roboto', sans-serif;
+html, body {
     margin: 0;
     padding: 0;
+    overflow-x: hidden;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
 }
 
 /* Light Mode */
@@ -174,6 +178,10 @@ body.dark {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+.app .container {
+    flex: 1;
 }
 
 /* Navbar */
