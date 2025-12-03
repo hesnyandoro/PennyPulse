@@ -261,6 +261,224 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        .container {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        body.dark .page-title {
+            color: #f3f4f6;
+        }
+        
+        .page-title::before {
+            content: '';
+            width: 4px;
+            height: 36px;
+            background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+            border-radius: 2px;
+        }
+        
+        .page-title i {
+            color: #3b82f6;
+        }
+        
+        /* Table Styling */
+        .table-wrapper {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            overflow-x: auto;
+            margin-bottom: 24px;
+        }
+        
+        body.dark .table-wrapper {
+            background: #1f2937;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .expense-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Roboto', sans-serif;
+            table-layout: fixed;
+        }
+        
+        .expense-table thead tr {
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        body.dark .expense-table thead tr {
+            background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+            border-bottom: 2px solid #6b7280;
+        }
+        
+        .expense-table th {
+            text-align: left;
+            padding: 18px 12px;
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Roboto', sans-serif;
+            white-space: nowrap;
+        }
+        
+        .expense-table th:nth-child(1) { width: 9%; }   /* Date */
+        .expense-table th:nth-child(2) { width: 10%; }  /* Amount */
+        .expense-table th:nth-child(3) { width: 11%; }  /* Category */
+        .expense-table th:nth-child(4) { width: 18%; }  /* Description */
+        .expense-table th:nth-child(5) { width: 11%; }  /* Type */
+        .expense-table th:nth-child(6) { width: 10%; }  /* Frequency */
+        .expense-table th:nth-child(7) { width: 13%; }  /* Payment Method */
+        .expense-table th:nth-child(8) { width: 10%; }  /* Merchant */
+        .expense-table th:nth-child(9) { width: 8%; }   /* Actions */
+        
+        body.dark .expense-table th {
+            color: #f3f4f6;
+        }
+        
+        .expense-table tbody tr {
+            border-bottom: 1px solid #f3f4f6;
+            transition: all 0.2s ease;
+        }
+        
+        body.dark .expense-table tbody tr {
+            border-bottom: 1px solid #374151;
+        }
+        
+        .expense-table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+        
+        body.dark .expense-table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.1);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+        }
+        
+        .expense-table td {
+            padding: 16px 12px;
+            color: #374151;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .expense-table td:nth-child(4) {
+            white-space: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 0;
+        }
+        
+        body.dark .expense-table td {
+            color: #d1d5db;
+        }
+        
+        .expense-table tbody tr:last-child {
+            border-bottom: none;
+        }
+        
+        /* Badge Styling */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .badge.one-time {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .badge.recurring {
+            background: rgba(168, 85, 247, 0.1);
+            color: #a855f7;
+            border: 1px solid rgba(168, 85, 247, 0.2);
+        }
+        
+        body.dark .badge.one-time {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        
+        body.dark .badge.recurring {
+            background: rgba(168, 85, 247, 0.2);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+        
+        /* Action Buttons */
+        .action-btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            margin-right: 6px;
+        }
+        
+        .edit-btn {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .edit-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
+        }
+        
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
+        }
+        
+        body.dark .edit-btn {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        
+        body.dark .delete-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+    </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <nav class="navbar">
@@ -284,7 +502,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
     </nav>
 
     <div class="container">
-        <h1 style="font-size: 32px; font-weight: 700; color: #1f2937; margin-bottom: 30px; font-family: 'Roboto', sans-serif;">Your Expenses</h1>
+        <h1 class="page-title"><i class="fas fa-list"></i> Your Expenses</h1>
 
         <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 35px;">
             <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
@@ -402,46 +620,46 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         </div>
         
         <?php if (count($all_expenses) > 0): ?>
-            <div style="overflow-x: auto;">
-                <table class="expense-table" style="width: 100%; table-layout: fixed; border-collapse: collapse; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); font-family: 'Roboto', sans-serif;">
+            <div class="table-wrapper">
+                <table class="expense-table">
                     <thead>
-                        <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 9%; font-family: 'Roboto', sans-serif;">Date</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 11%; font-family: 'Roboto', sans-serif;">Amount</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 11%; font-family: 'Roboto', sans-serif;">Category</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 16%; font-family: 'Roboto', sans-serif;">Description</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 12%; font-family: 'Roboto', sans-serif;">Type</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 9%; font-family: 'Roboto', sans-serif;">Frequency</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 13%; font-family: 'Roboto', sans-serif;">Payment Method</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 10%; font-family: 'Roboto', sans-serif;">Merchant</th>
-                            <th style="text-align: left; padding: 14px 12px; font-weight: 700; color: #1f2937; font-size: 15px; width: 9%; font-family: 'Roboto', sans-serif;">Actions</th>
+                        <tr>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Type</th>
+                            <th>Frequency</th>
+                            <th>Payment Method</th>
+                            <th>Merchant</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($all_expenses as $exp): ?>
-                            <tr style="border-bottom: 1px solid #f3f4f6;">
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['date'] ?? 'N/A'); ?></td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Roboto', sans-serif; font-weight: 400;">KES&nbsp;<?php echo htmlspecialchars(number_format($exp['amount'] ?? 0, 2)); ?></td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['category_name'] ?? 'N/A'); ?></td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;" title="<?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?>"><?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?></td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif;">
-                                    <span class="badge <?php echo $exp['type'] === 'One-Time' ? 'one-time' : 'recurring'; ?>" style="display: inline-block; font-size: 13px; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;">
-                                        <?php echo $exp['type'] === 'One-Time' ? '⚫' : '🔄'; ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($exp['date'] ?? 'N/A'); ?></td>
+                                <td><strong>KES&nbsp;<?php echo htmlspecialchars(number_format($exp['amount'] ?? 0, 2)); ?></strong></td>
+                                <td><?php echo htmlspecialchars($exp['category_name'] ?? 'N/A'); ?></td>
+                                <td title="<?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?>"><?php echo htmlspecialchars($exp['description'] ?? 'N/A'); ?></td>
+                                <td>
+                                    <span class="badge <?php echo $exp['type'] === 'One-Time' ? 'one-time' : 'recurring'; ?>">
+                                        <i class="fas <?php echo $exp['type'] === 'One-Time' ? 'fa-circle' : 'fa-sync-alt'; ?>"></i>
                                         <?php echo htmlspecialchars($exp['type']); ?>
                                     </span>
                                 </td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['frequency'] ?? '-'); ?></td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['payment_method'] ?? 'N/A'); ?></td>
-                                <td style="padding: 14px 12px; color: #1f2937; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Roboto', sans-serif; font-weight: 400;"><?php echo htmlspecialchars($exp['merchant'] ?? 'N/A'); ?></td>
-                                <td style="padding: 12px 10px; color: #374151; font-size: 13px; white-space: nowrap;">
-    <?php if (isset($exp['is_recurring']) && $exp['is_recurring']): ?>
-        <a href="edit_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn edit-btn" style="font-size: 14px; padding: 6px 10px; display: inline-block; margin-right: 5px;" title="Edit"><i class="fas fa-edit"></i></a>
-        <a href="delete_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this single instance?');" style="font-size: 14px; padding: 6px 10px; display: inline-block;" title="Delete"><i class="fas fa-trash"></i></a>
-    <?php else: ?>
-        <a href="add_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn" style="font-size: 14px; padding: 6px 10px; display: inline-block; margin-right: 5px;" title="Edit"><i class="fas fa-edit"></i></a>
-        <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');" style="font-size: 14px; padding: 6px 10px; display: inline-block;" title="Delete"><i class="fas fa-trash"></i></a>
-    <?php endif; ?>
-</td>
+                                <td><?php echo htmlspecialchars($exp['frequency'] ?? '-'); ?></td>
+                                <td><?php echo htmlspecialchars($exp['payment_method'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($exp['merchant'] ?? 'N/A'); ?></td>
+                                <td>
+                                    <?php if (isset($exp['is_recurring']) && $exp['is_recurring']): ?>
+                                        <a href="edit_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn edit-btn" title="Edit"><i class="fas fa-edit"></i></a>
+                                        <a href="delete_recurring_handler.php?id=<?php echo htmlspecialchars($exp['rule_id']); ?>&date=<?php echo htmlspecialchars($exp['date']); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this single instance?');" title="Delete"><i class="fas fa-trash"></i></a>
+                                    <?php else: ?>
+                                        <a href="add_expense.php?id=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn edit-btn" title="Edit"><i class="fas fa-edit"></i></a>
+                                        <a href="view_expenses.php?delete=<?php echo htmlspecialchars($exp['id'] ?? '0'); ?>" class="action-btn delete-btn" onclick="return confirm('Are you sure?');" title="Delete"><i class="fas fa-trash"></i></a>
+                                    <?php endif; ?>
+                                </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
