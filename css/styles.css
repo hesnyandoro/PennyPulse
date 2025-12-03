@@ -38,25 +38,7 @@
     transform: scale(1.05);
 }
 
-.hero-section .cta-btn::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: var(--glow);
-    opacity: 0;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition: width 0.5s, height 0.5s, opacity 0.5s;
-}
 
-.hero-section .cta-btn:hover::after {
-    width: 300px;
-    height: 300px;
-    opacity: 0.3;
-}
 
 /* Features Section */
 .features-section {
@@ -87,13 +69,13 @@ body.dark .features-section h2 {
     background-color: var(--neutral);
     padding: 30px;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1), 0 0 10px var(--glow);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     transition: transform 0.3s;
 }
 
 body.dark .feature-card {
     background-color: var(--dark-bg);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3), 0 0 10px var(--glow);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
 .feature-card:hover {
@@ -312,13 +294,13 @@ body.dark .welcome-section h1 {
     background-color: var(--neutral);
     border-radius: 8px;
     padding: 20px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1), 0 0 10px var(--glow);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     transition: transform 0.3s;
 }
 
 body.dark .stat-card {
     background-color: var(--dark-bg);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3), 0 0 10px var(--glow);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
 .stat-card:hover {
@@ -497,25 +479,7 @@ body.dark tr:nth-child(even) {
     overflow: hidden;
 }
 
-.btn::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: var(--glow);
-    opacity: 0;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition: width 0.5s, height 0.5s, opacity 0.5s;
-}
 
-.btn:hover::after {
-    width: 200px;
-    height: 200px;
-    opacity: 0.3;
-}
 
 /*INDEX PAGE */
 /* Bento Grid Layout */
@@ -542,11 +506,11 @@ body.dark .bento-box {
 
 .bento-box:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2), 0 0 10px var(--glow); /* Glow effect on hover */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
 body.dark .bento-box:hover {
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4), 0 0 10px var(--glow); /* Glow effect on hover in dark mode */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
 
 /* Card Positioning */
@@ -654,11 +618,11 @@ body.dark .bento-box {
 
 .bento-box:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2), 0 0 10px var(--glow);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
 body.dark .bento-box:hover {
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4), 0 0 10px var(--glow);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
 
 /* Card Positioning */
@@ -730,13 +694,13 @@ body.dark .input-wrapper textarea {
 .input-wrapper textarea:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 5px rgba(74, 144, 226, 0.3);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 body.dark .input-wrapper input:focus,
 body.dark .input-wrapper select:focus,
 body.dark .input-wrapper textarea:focus {
-    box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
 }
 
 .input-wrapper textarea {
@@ -988,11 +952,11 @@ body.dark .metric-card {
 
 .metric-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2), 0 0 10px var(--glow);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
 body.dark .metric-card:hover {
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4), 0 0 10px var(--glow);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
 
 .metric-card h3 {
@@ -1439,8 +1403,8 @@ body.dark .form-group textarea {
 body.dark .form-group input:focus,
 body.dark .form-group select:focus,
 body.dark .form-group textarea:focus {
-    border-color: var(--glow);
-    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.2);
 }
 
 .form-group textarea {
@@ -1708,8 +1672,8 @@ form input[type="date"]:focus {
 
 body.dark form select:focus,
 body.dark form input[type="date"]:focus {
-    border-color: var(--glow);
-    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.2);
 }
 
 form button[type="submit"] {

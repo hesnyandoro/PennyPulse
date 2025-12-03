@@ -305,8 +305,574 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
     <title>Set Budget - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" 
           onerror="this.onerror=null; this.href='/expense_tracker/fontawesome/css/all.min.css'">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
+    <style>
+        .add-expense-section {
+            max-width: 95%;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .page-title::before {
+            content: '';
+            width: 4px;
+            height: 36px;
+            background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+            border-radius: 2px;
+        }
+        
+        .page-title i {
+            color: #3b82f6;
+        }
+        
+        /* Messages */
+        .success-message, .error-message {
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+        
+        /* Budget Form */
+        #budget-form {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 32px;
+        }
+        
+        .bento-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .bento-box.primary-box {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .form-group label i {
+            color: #3b82f6;
+            font-size: 12px;
+        }
+        
+        .required {
+            color: #ef4444;
+        }
+        
+        .input-wrapper {
+            position: relative;
+        }
+        
+        .input-wrapper select,
+        .input-wrapper input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            transition: all 0.2s ease;
+            background: white;
+            color: #374151;
+            box-sizing: border-box;
+        }
+        
+        .input-wrapper select:focus,
+        .input-wrapper input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .input-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            transition: all 0.2s ease;
+        }
+        
+        .input-icon i.valid {
+            color: #10b981;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .save-btn, .cancel-btn {
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            font-family: 'Roboto', sans-serif;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+        
+        .save-btn {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+        
+        .cancel-btn {
+            background: white;
+            color: #6b7280;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .cancel-btn:hover {
+            background: #f9fafb;
+            border-color: #d1d5db;
+        }
+        
+        /* Filter Controls */
+        .filter-controls {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 32px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .filter-group select {
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .filter-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .summary-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        .summary-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .summary-card p {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .summary-card::after {
+            content: '';
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .summary-card:nth-child(1)::after {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+        
+        .summary-card:nth-child(2)::after {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        
+        .summary-card:nth-child(3)::after {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+        
+        /* Budget Overview */
+        .budget-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+        }
+        
+        .budget-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #3b82f6;
+            transition: all 0.3s ease;
+        }
+        
+        .budget-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        .budget-card h3 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .budget-card p {
+            margin: 8px 0;
+            font-size: 14px;
+            color: #6b7280;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .budget-card.under_budget {
+            border-left-color: #10b981;
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+        }
+        
+        .budget-card.near_limit {
+            border-left-color: #f59e0b;
+            background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+        }
+        
+        .budget-card.over_budget {
+            border-left-color: #ef4444;
+            background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+        }
+        
+        .warning-message {
+            margin: 12px 0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .budget-card.near_limit .warning-message {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .budget-card.over_budget .warning-message {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .budget-card.near_limit .progress {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+        }
+        
+        .budget-card.over_budget .progress {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+        
+        .delete-btn {
+            padding: 8px 16px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Roboto', sans-serif;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            color: #6b7280;
+            margin-bottom: 20px;
+        }
+        
+        .add-budget-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .add-budget-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* Dark Mode */
+        body.dark .page-title {
+            color: #f9fafb;
+        }
+        
+        body.dark .success-message {
+            background: #064e3b;
+            color: #d1fae5;
+        }
+        
+        body.dark .error-message {
+            background: #7f1d1d;
+            color: #fee2e2;
+        }
+        
+        body.dark #budget-form {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .form-group label {
+            color: #d1d5db;
+        }
+        
+        body.dark .input-wrapper select,
+        body.dark .input-wrapper input {
+            background: #111827;
+            border-color: #374151;
+            color: #f9fafb;
+        }
+        
+        body.dark .input-wrapper select:focus,
+        body.dark .input-wrapper input:focus {
+            border-color: #3b82f6;
+            background: #1f2937;
+        }
+        
+        body.dark .cancel-btn {
+            background: #374151;
+            color: #d1d5db;
+            border-color: #4b5563;
+        }
+        
+        body.dark .cancel-btn:hover {
+            background: #4b5563;
+        }
+        
+        body.dark .filter-controls {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .filter-group label {
+            color: #d1d5db;
+        }
+        
+        body.dark .filter-group select {
+            background: #111827;
+            border-color: #374151;
+            color: #f9fafb;
+        }
+        
+        body.dark .summary-card {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .summary-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+        
+        body.dark .summary-card h3 {
+            color: #9ca3af;
+        }
+        
+        body.dark .summary-card p {
+            color: #f9fafb;
+        }
+        
+        body.dark .budget-card {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .budget-card.under_budget {
+            background: linear-gradient(135deg, #1f2937 0%, #064e3b 100%);
+        }
+        
+        body.dark .budget-card.near_limit {
+            background: linear-gradient(135deg, #1f2937 0%, #78350f 100%);
+        }
+        
+        body.dark .budget-card.over_budget {
+            background: linear-gradient(135deg, #1f2937 0%, #7f1d1d 100%);
+        }
+        
+        body.dark .budget-card h3 {
+            color: #f9fafb;
+        }
+        
+        body.dark .budget-card p {
+            color: #9ca3af;
+        }
+        
+        body.dark .progress-bar {
+            background: #374151;
+        }
+        
+        body.dark .budget-card.near_limit .warning-message {
+            background: #78350f;
+            color: #fef3c7;
+        }
+        
+        body.dark .budget-card.over_budget .warning-message {
+            background: #7f1d1d;
+            color: #fee2e2;
+        }
+        
+        body.dark .delete-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        
+        body.dark .empty-state {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .empty-state p {
+            color: #9ca3af;
+        }
+    </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <div class="app">
@@ -333,7 +899,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
 
         <!-- Budget Section -->
         <div class="add-expense-section">
-            <h1 class="page-title">Manage Budgets</h1>
+            <h1 class="page-title"><i class="fas fa-wallet"></i> Manage Budgets</h1>
             <?php if ($success_message) { ?>
                 <p class="success-message"><?php echo htmlspecialchars($success_message); ?></p>
             <?php } ?>
@@ -346,7 +912,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
                 <div class="bento-grid">
                     <div class="bento-box primary-box">
                         <div class="form-group">
-                            <label for="category_id">Category <span class="required">*</span></label>
+                            <label for="category_id"><i class="fas fa-tag"></i> Category <span class="required">*</span></label>
                             <div class="input-wrapper">
                                 <select name="category_id" id="category_id" required>
                                     <option value="">Select Category</option>
@@ -360,14 +926,14 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="month">Month <span class="required">*</span></label>
+                            <label for="month"><i class="fas fa-calendar-alt"></i> Month <span class="required">*</span></label>
                             <div class="input-wrapper">
                                 <input type="month" name="month" id="month" required>
                                 <span class="input-icon"><i class="fas fa-check"></i></span>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="budget_amount">Budget Amount <span class="required">*</span></label>
+                            <label for="budget_amount"><i class="fas fa-dollar-sign"></i> Budget Amount <span class="required">*</span></label>
                             <div class="input-wrapper">
                                 <input type="number" name="budget_amount" id="budget_amount" step="0.01" min="0.01" required placeholder="Enter budget amount">
                                 <span class="input-icon"><i class="fas fa-check"></i></span>
@@ -388,7 +954,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
             <form id="filter-form" method="GET">
                 <div class="filter-controls">
                     <div class="filter-group">
-                        <label for="time_filter">Filter by Time:</label>
+                        <label for="time_filter"><i class="fas fa-clock"></i> Filter by Time:</label>
                         <select id="time_filter" name="time_filter" onchange="this.form.submit()">
                             <option value="active" <?php echo $time_filter === 'active' ? 'selected' : ''; ?>>Active Budgets</option>
                             <option value="past" <?php echo $time_filter === 'past' ? 'selected' : ''; ?>>Past Budgets</option>
@@ -396,7 +962,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label for="status_filter">Filter by Status:</label>
+                        <label for="status_filter"><i class="fas fa-chart-line"></i> Filter by Status:</label>
                         <select id="status_filter" name="status_filter" onchange="this.form.submit()">
                             <option value="" <?php echo $status_filter === '' ? 'selected' : ''; ?>>All</option>
                             <option value="under_budget" <?php echo $status_filter === 'under_budget' ? 'selected' : ''; ?>>Under Budget</option>
