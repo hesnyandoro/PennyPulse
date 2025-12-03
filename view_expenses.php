@@ -263,8 +263,8 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         .container {
-            width: 100%;
-            max-width: 100%;
+            width: 95%;
+            max-width: 95%;
             margin: 0 auto;
             padding: 40px 20px;
         }
@@ -301,7 +301,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
             background: white;
             border-radius: 16px;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-            overflow-x: auto;
+            overflow: hidden;
             margin-bottom: 24px;
         }
         
@@ -317,6 +317,16 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
             table-layout: fixed;
         }
         
+        .expense-table col:nth-child(1) { width: 8%; }   /* Date */
+        .expense-table col:nth-child(2) { width: 9%; }   /* Amount */
+        .expense-table col:nth-child(3) { width: 10%; }  /* Category */
+        .expense-table col:nth-child(4) { width: 17%; }  /* Description */
+        .expense-table col:nth-child(5) { width: 11%; }  /* Type */
+        .expense-table col:nth-child(6) { width: 9%; }   /* Frequency */
+        .expense-table col:nth-child(7) { width: 12%; }  /* Payment Method */
+        .expense-table col:nth-child(8) { width: 10%; }  /* Merchant */
+        .expense-table col:nth-child(9) { width: 14%; }  /* Actions */
+        
         .expense-table thead tr {
             background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
             border-bottom: 2px solid #e5e7eb;
@@ -329,12 +339,12 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         
         .expense-table th {
             text-align: left;
-            padding: 18px 12px;
+            padding: 14px 8px;
             font-weight: 700;
             color: #1f2937;
-            font-size: 13px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             font-family: 'Roboto', sans-serif;
             white-space: nowrap;
         }
@@ -374,9 +384,9 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         }
         
         .expense-table td {
-            padding: 16px 12px;
+            padding: 12px 8px;
             color: #374151;
-            font-size: 14px;
+            font-size: 13px;
             font-family: 'Roboto', sans-serif;
             white-space: nowrap;
             overflow: hidden;
@@ -384,10 +394,9 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         }
         
         .expense-table td:nth-child(4) {
-            white-space: normal;
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 0;
         }
         
         body.dark .expense-table td {
@@ -434,15 +443,15 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         
         /* Action Buttons */
         .action-btn {
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 12px;
             transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             text-decoration: none;
-            margin-right: 6px;
+            margin-right: 4px;
         }
         
         .edit-btn {
@@ -504,41 +513,50 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
     <div class="container">
         <h1 class="page-title"><i class="fas fa-list"></i> Your Expenses</h1>
 
-        <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 35px;">
-            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Total Expenses</h3>
-                    <i class="fas fa-wallet" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+        <div class="summary-cards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px;">
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0, 0, 0, 0.12)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.08)'">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 500; color: #6b7280; font-family: 'Roboto', sans-serif;">Total Expenses</h3>
+                        <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_expenses, 2); ?></p>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(59, 130, 246, 0.1);">
+                        <i class="fas fa-wallet" style="font-size: 24px; color: #3b82f6;"></i>
+                    </div>
                 </div>
-                <p style="margin: 0; font-size: 36px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_expenses, 2); ?></p>
             </div>
-            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">One-Time</h3>
-                    <i class="fas fa-receipt" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0, 0, 0, 0.12)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.08)'">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 500; color: #6b7280; font-family: 'Roboto', sans-serif;">One-Time</h3>
+                        <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_one_time, 2); ?></p>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(34, 197, 94, 0.1);">
+                        <i class="fas fa-receipt" style="font-size: 24px; color: #22c55e;"></i>
+                    </div>
                 </div>
-                <p style="margin: 0; font-size: 36px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_one_time, 2); ?></p>
             </div>
-            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Recurring</h3>
-                    <i class="fas fa-sync-alt" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0, 0, 0, 0.12)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.08)'">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 500; color: #6b7280; font-family: 'Roboto', sans-serif;">Recurring</h3>
+                        <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_recurring, 2); ?></p>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(168, 85, 247, 0.1);">
+                        <i class="fas fa-sync-alt" style="font-size: 24px; color: #a855f7;"></i>
+                    </div>
                 </div>
-                <p style="margin: 0; font-size: 36px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;">KES&nbsp;<?php echo number_format($total_recurring, 2); ?></p>
             </div>
-            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Top Category</h3>
-                    <i class="fas fa-star" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
+            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0, 0, 0, 0.12)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.08)'">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 500; color: #6b7280; font-family: 'Roboto', sans-serif;">Top Category</h3>
+                        <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;"><?php echo htmlspecialchars($top_category); ?></p>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(249, 115, 22, 0.1);">
+                        <i class="fas fa-star" style="font-size: 24px; color: #f97316;"></i>
+                    </div>
                 </div>
-                <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1f2937; font-family: 'Roboto', sans-serif;"><?php echo htmlspecialchars($top_category); ?></p>
-            </div>
-            <div class="summary-card" style="background: #FFFFFF; color: #1f2937; padding: 28px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #6b7280; font-family: 'Roboto', sans-serif;">Expense Breakdown</h3>
-                    <i class="fas fa-chart-pie" style="font-size: 24px; opacity: 0.6; color: #3b82f6;"></i>
-                </div>
-                <canvas id="expenseChart" width="200" height="200"></canvas>
             </div>
         </div>
 
@@ -559,69 +577,117 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
             </div>
         <?php endif; ?>
 
-        <form method="GET" style="background: #FFFFFF; padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 25px;">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 15px;">
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Sort By</label>
-                    <select name="sort" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
-                        <option value="date" <?php echo $sort === 'date' ? 'selected' : ''; ?>>Date</option>
-                        <option value="amount" <?php echo $sort === 'amount' ? 'selected' : ''; ?>>Amount</option>
-                        <option value="category_id" <?php echo $sort === 'category_id' ? 'selected' : ''; ?>>Category</option>
-                        <option value="type" <?php echo $sort === 'type' ? 'selected' : ''; ?>>Type</option>
-                        <option value="frequency" <?php echo $sort === 'frequency' ? 'selected' : ''; ?>>Frequency</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Order</label>
-                    <select name="order" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
-                        <option value="ASC" <?php echo $order === 'ASC' ? 'selected' : ''; ?>>Ascending</option>
-                        <option value="DESC" <?php echo $order === 'DESC' ? 'selected' : ''; ?>>Descending</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Type</label>
-                    <select name="type" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
-                        <option value="All" <?php echo $filter_type === 'All' ? 'selected' : ''; ?>>All Types</option>
-                        <option value="One-Time" <?php echo $filter_type === 'One-Time' ? 'selected' : ''; ?>>One-Time</option>
-                        <option value="Recurring" <?php echo $filter_type === 'Recurring' ? 'selected' : ''; ?>>Recurring</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Category</label>
-                    <select name="category" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
-                        <option value="">All Categories</option>
-                        <?php $categories->data_seek(0); while ($cat = $categories->fetch_assoc()) echo "<option value='{$cat['id']}' " . ($filter_category == $cat['id'] ? 'selected' : '') . ">{$cat['name']}</option>"; ?>
-                    </select>
+        <div style="background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); margin-bottom: 24px; max-width: 100%;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-filter" style="color: #3b82f6;"></i>
+                    Filter & Sort
+                </h2>
+                <div style="display: flex; gap: 10px;">
+                    <button class="export-btn" onclick="exportData('filtered')" style="padding: 8px 16px; background: white; border: 2px solid #3b82f6; color: #3b82f6; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; font-family: 'Roboto', sans-serif; white-space: nowrap;" onmouseover="this.style.background='#3b82f6'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='#3b82f6';">
+                        <i class="fas fa-download"></i> Export Filtered
+                    </button>
+                    <button class="export-btn" onclick="exportData('all')" style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); font-family: 'Roboto', sans-serif; white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(59, 130, 246, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)';">
+                        <i class="fas fa-file-export"></i> Export All
+                    </button>
                 </div>
             </div>
-            <div style="display: grid; grid-template-columns: 2fr 2fr 2fr 1fr; gap: 20px; align-items: end;">
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Payment Method</label>
-                    <select name="payment_method" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
-                        <option value="">All Payment Methods</option>
-                        <?php $payment_methods->data_seek(0); while ($method = $payment_methods->fetch_assoc()) echo "<option value='{$method['payment_method']}' " . ($filter_payment_method == $method['payment_method'] ? 'selected' : '') . ">{$method['payment_method']}</option>"; ?>
-                    </select>
+            
+            <form method="GET" style="width: 100%;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-sort" style="color: #3b82f6; font-size: 11px;"></i>
+                            Sort By
+                        </label>
+                        <select name="sort" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            <option value="date" <?php echo $sort === 'date' ? 'selected' : ''; ?>>Date</option>
+                            <option value="amount" <?php echo $sort === 'amount' ? 'selected' : ''; ?>>Amount</option>
+                            <option value="category_id" <?php echo $sort === 'category_id' ? 'selected' : ''; ?>>Category</option>
+                            <option value="type" <?php echo $sort === 'type' ? 'selected' : ''; ?>>Type</option>
+                            <option value="frequency" <?php echo $sort === 'frequency' ? 'selected' : ''; ?>>Frequency</option>
+                        </select>
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-arrow-down-up-across-line" style="color: #3b82f6; font-size: 11px;"></i>
+                            Order
+                        </label>
+                        <select name="order" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            <option value="ASC" <?php echo $order === 'ASC' ? 'selected' : ''; ?>>Ascending</option>
+                            <option value="DESC" <?php echo $order === 'DESC' ? 'selected' : ''; ?>>Descending</option>
+                        </select>
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-tag" style="color: #3b82f6; font-size: 11px;"></i>
+                            Type
+                        </label>
+                        <select name="type" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            <option value="All" <?php echo $filter_type === 'All' ? 'selected' : ''; ?>>All Types</option>
+                            <option value="One-Time" <?php echo $filter_type === 'One-Time' ? 'selected' : ''; ?>>One-Time</option>
+                            <option value="Recurring" <?php echo $filter_type === 'Recurring' ? 'selected' : ''; ?>>Recurring</option>
+                        </select>
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-folder" style="color: #3b82f6; font-size: 11px;"></i>
+                            Category
+                        </label>
+                        <select name="category" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            <option value="">All Categories</option>
+                            <?php $categories->data_seek(0); while ($cat = $categories->fetch_assoc()) echo "<option value='{$cat['id']}' " . ($filter_category == $cat['id'] ? 'selected' : '') . ">{$cat['name']}</option>"; ?>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">Start Date</label>
-                    <input type="date" name="date_start" value="<?php echo htmlspecialchars($view_start_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: end;">
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-credit-card" style="color: #3b82f6; font-size: 11px;"></i>
+                            Payment Method
+                        </label>
+                        <select name="payment_method" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            <option value="">All Payment Methods</option>
+                            <?php $payment_methods->data_seek(0); while ($method = $payment_methods->fetch_assoc()) echo "<option value='{$method['payment_method']}' " . ($filter_payment_method == $method['payment_method'] ? 'selected' : '') . ">{$method['payment_method']}</option>"; ?>
+                        </select>
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-calendar-alt" style="color: #3b82f6; font-size: 11px;"></i>
+                            Start Date
+                        </label>
+                        <input type="date" name="date_start" value="<?php echo htmlspecialchars($view_start_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-calendar-check" style="color: #3b82f6; font-size: 11px;"></i>
+                            End Date
+                        </label>
+                        <input type="date" name="date_end" value="<?php echo htmlspecialchars($view_end_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                    </div>
+                    <div style="min-width: 0;">
+                        <button type="submit" style="width: 100%; padding: 11px 20px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); font-family: 'Roboto', sans-serif; box-sizing: border-box; white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(59, 130, 246, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)';">
+                            <i class="fas fa-search"></i> Apply
+                        </button>
+                    </div>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; font-weight: 500;">End Date</label>
-                    <input type="date" name="date_end" value="<?php echo htmlspecialchars($view_end_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #FFFFFF; box-sizing: border-box;">
-                </div>
-                <button type="submit" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; box-sizing: border-box; height: 42px;">Filter</button>
-            </div>
-        </form>
-
-        <div style="margin-bottom: 20px;">
-            <button class="export-btn" onclick="exportData('filtered')">Export Filtered (PDF/CSV)</button>
-            <button class="export-btn" onclick="exportData('all')">Export All (PDF/CSV)</button>
+            </form>
         </div>
         
         <?php if (count($all_expenses) > 0): ?>
             <div class="table-wrapper">
                 <table class="expense-table">
+                    <colgroup>
+                        <col style="width: 8%;">
+                        <col style="width: 9%;">
+                        <col style="width: 10%;">
+                        <col style="width: 17%;">
+                        <col style="width: 11%;">
+                        <col style="width: 9%;">
+                        <col style="width: 12%;">
+                        <col style="width: 10%;">
+                        <col style="width: 14%;">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Date</th>
@@ -782,24 +848,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
                 html2pdf().from(element).save(`expenses_${type}_${new Date().toISOString().split('T')[0]}.pdf`);
             }
 
-            // Initialize pie chart
-            const ctx1 = document.getElementById('expenseChart').getContext('2d');
-            new Chart(ctx1, {
-                type: 'pie',
-                data: {
-                    labels: ['One-Time', 'Recurring'],
-                    datasets: [{
-                        data: [<?php echo $total_one_time; ?>, <?php echo $total_recurring; ?>],
-                        backgroundColor: ['#1E3A8A', '#15803d'],
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top' },
-                    },
-                },
-            });
+
         </script>
     </div>
 </body>
