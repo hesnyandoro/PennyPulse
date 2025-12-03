@@ -30,37 +30,14 @@ $settings = getUserTheme($conn, $user_id);
 $theme = $settings['theme'] ?? 'light';
 $language = 'en';
 
-// Fetch category names and create mapping
+// Fetch category names and create mapping (include both user and system categories)
 $category_map = [];
-$stmt = $conn->prepare("SELECT id, name FROM categories WHERE user_id = ?");
+$stmt = $conn->prepare("SELECT id, name FROM categories WHERE user_id = ? OR user_id IS NULL");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
     $category_map[$row['id']] = $row['name'];
-}
-
-// Fetch categories and payment methods for filters
-$categories = [];
-$payment_methods = [];
-$stmt = $conn->prepare("SELECT DISTINCT category_id FROM expenses WHERE user_id = ? UNION SELECT DISTINCT category_id FROM recurring_expenses WHERE user_id = ?");
-$stmt->bind_param("ii", $user_id, $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    if (isset($category_map[$row['category_id']])) {
-        $categories[] = $category_map[$row['category_id']];
-    }
-}
-
-$stmt = $conn->prepare("SELECT DISTINCT payment_method FROM expenses WHERE user_id = ? UNION SELECT DISTINCT payment_method FROM recurring_expenses WHERE user_id = ?");
-$stmt->bind_param("ii", $user_id, $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    if (!empty($row['payment_method'])) {
-        $payment_methods[] = $row['payment_method'];
-    }
 }
 
 // Fetch budgets
@@ -72,183 +49,242 @@ $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
     if (isset($category_map[$row['category_id']])) {
         $category_name = $category_map[$row['category_id']];
-        $budgets[$category_name] = $row['budget_amount'];
-    }
-}    
-// Default filter values
-$time_period = 'this_month';
-$selected_category = 'all';
-$selected_payment_method = 'all';
-$start_date = '';
-$end_date = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $time_period = $_POST['time_period'] ?? 'this_month';
-    $selected_category = $_POST['category'] ?? 'all';
-    $selected_payment_method = $_POST['payment_method'] ?? 'all';
-    $start_date = $_POST['start_date'] ?? '';
-    $end_date = $_POST['end_date'] ?? '';
-}
-
-// Determine date range based on time period
-switch ($time_period) {
-    case 'this_week':
-        $start_date = date('Y-m-d', strtotime('monday this week'));
-        $end_date = date('Y-m-d');
-        break;
-    case 'last_week':
-        $start_date = date('Y-m-d', strtotime('monday last week'));
-        $end_date = date('Y-m-d', strtotime('sunday last week'));
-        break;
-    case 'last_month':
-        $start_date = date('Y-m-01', strtotime('last month'));
-        $end_date = date('Y-m-t', strtotime('last month'));
-        break;
-    case 'this_month':
-    default:
-        $start_date = date('Y-m-01');
-        $end_date = date('Y-m-d');
-        break;
-    case 'custom':
-        if (!strtotime($start_date) || !strtotime($end_date)) {
-            $start_date = date('Y-m-01');
-            $end_date = date('Y-m-d');
-        }
-        break;
-}
-
-// Build the expenses query with filters
-$query = "SELECT amount, category_id AS category, payment_method, date FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?";
-$params = [$user_id, $start_date, $end_date];
-$types = "iss";
-
-if ($selected_category !== 'all' && isset($category_map[array_search($selected_category, $category_map)])) {
-    $selected_category_id = array_search($selected_category, $category_map);
-    $query .= " AND category_id = ?";
-    $params[] = $selected_category_id;
-    $types .= "i";
-}
-
-if ($selected_payment_method !== 'all') {
-    $query .= " AND payment_method = ?";
-    $params[] = $selected_payment_method;
-    $types .= "s";
-}
-
-$query .= " ORDER BY date ASC";
-$stmt = $conn->prepare($query);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-// Fetch and calculate recurring expenses
-$recurring_expenses = [];
-$query = "SELECT amount, category_id, payment_method, start_date, end_date, frequency FROM recurring_expenses WHERE user_id = ? AND start_date <= ? AND (end_date IS NULL OR end_date >= ?)";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("iss", $user_id, $end_date, $start_date);
-$stmt->execute();
-$result = $stmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    $start = new DateTime(max($start_date, $row['start_date']));
-    $end = new DateTime(min($end_date, $row['end_date'] ?? $end_date));
-    if ($start > $end) continue; // Skip if no overlap
-
-    $interval_map = [
-        'daily' => 'P1D',
-        'weekly' => 'P7D',
-        'monthly' => 'P1M',
-        'yearly' => 'P1Y'
-    ];
-    $interval = new DateInterval($interval_map[$row['frequency']]);
-    $period = new DatePeriod($start, $interval, $end);
-
-    $count = 0;
-    foreach ($period as $date) {
-        $count++;
-    }
-    if ($count > 0) {
-        $recurring_expenses[] = [
-            'amount' => $row['amount'] * $count,
-            'category' => $row['category_id'],
-            'payment_method' => $row['payment_method'],
-            'date' => $start->format('Y-m-d') // Use start date for grouping
+        $budgets[$category_name] = [
+            'amount' => $row['budget_amount'],
+            'category_id' => $row['category_id']
         ];
     }
 }
 
-// Merge one-time and recurring expenses
-$all_expenses = array_merge($expenses, $recurring_expenses);
+// Default filter values - check both POST and GET for auto-update
+$time_period = $_REQUEST['time_period'] ?? 'this_month';
+$comparison_period = $_REQUEST['comparison_period'] ?? 'last_month';
+$view_mode = $_REQUEST['view_mode'] ?? 'overview';
 
-// Calculate summary metrics
-$total_spent = 0;
-$category_breakdown = [];
-$daily_expenses = []; // Initialize here
-$days = 0; // Initialize here
-
-// Generate date range and initialize daily_expenses
-$labels = [];
-$current_date = strtotime($start_date);
-$end_timestamp = strtotime($end_date);
-
-while ($current_date <= $end_timestamp) {
-    $date_str = date('Y-m-d', $current_date);
-    $labels[] = $date_str;
-    $daily_expenses[$date_str] = 0;
-    $current_date = strtotime('+1 day', $current_date);
-}
-$days = (strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24) + 1; // Calculate days
-
-// Map category IDs to names for breakdown
-foreach ($all_expenses as $expense) {
-    $category_id = $expense['category'];
-    $category_name = $category_map[$category_id] ?? $category_id; // Fallback to ID if name not found
-    $total_spent += $expense['amount'];
-    $date = $expense['date'];
-    $daily_expenses[$date] += $expense['amount'];
-
-    if (!isset($category_breakdown[$category_name])) {
-        $category_breakdown[$category_name] = 0;
+// Helper function to get date range
+function getDateRange($period) {
+    switch ($period) {
+        case 'this_week':
+            return [date('Y-m-d', strtotime('monday this week')), date('Y-m-d')];
+        case 'last_week':
+            return [date('Y-m-d', strtotime('monday last week')), date('Y-m-d', strtotime('sunday last week'))];
+        case 'this_month':
+            return [date('Y-m-01'), date('Y-m-d')];
+        case 'last_month':
+            $first = date('Y-m-01', strtotime('first day of last month'));
+            $last = date('Y-m-t', strtotime('last day of last month'));
+            return [$first, $last];
+        case 'this_year':
+            return [date('Y-01-01'), date('Y-m-d')];
+        case 'last_year':
+            return [date('Y-01-01', strtotime('last year')), date('Y-12-31', strtotime('last year'))];
+        case 'last_7_days':
+            return [date('Y-m-d', strtotime('-7 days')), date('Y-m-d')];
+        case 'last_30_days':
+            return [date('Y-m-d', strtotime('-30 days')), date('Y-m-d')];
+        default:
+            return [date('Y-m-01'), date('Y-m-d')];
     }
-    $category_breakdown[$category_name] += $expense['amount'];
 }
 
-$average_daily = $days > 0 ? $total_spent / $days : 0;
-$top_category = !empty($category_breakdown) ? array_keys($category_breakdown, max($category_breakdown))[0] : 'N/A';
-$line_data = array_values($daily_expenses); // Safe to use now
+list($start_date, $end_date) = getDateRange($time_period);
+list($comp_start_date, $comp_end_date) = getDateRange($comparison_period);
 
-// Calculate budget status
-$overall_budget_status = 'N/A';
+// Fetch expenses for current period
+function fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map) {
+    $expenses = [];
+    $stmt = $conn->prepare("SELECT amount, category_id as category, date, payment_method, description FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?");
+    $stmt->bind_param("iss", $user_id, $start_date, $end_date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $expenses[] = $row;
+    }
+    
+    // Handle recurring expenses
+    $stmt = $conn->prepare("SELECT amount, category_id as category, start_date, frequency, payment_method, description FROM recurring_expenses WHERE user_id = ? AND start_date <= ?");
+    $stmt->bind_param("is", $user_id, $end_date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $interval_map = [
+        'daily' => 'P1D',
+        'weekly' => 'P1W',
+        'monthly' => 'P1M',
+        'yearly' => 'P1Y'
+    ];
+    
+    while ($row = $result->fetch_assoc()) {
+        $frequency = strtolower($row['frequency']);
+        if (!isset($interval_map[$frequency])) {
+            continue;
+        }
+        
+        $interval = new DateInterval($interval_map[$frequency]);
+        $period_start = new DateTime(max($row['start_date'], $start_date));
+        $period_end = new DateTime($end_date);
+        $period_end->modify('+1 day');
+        
+        $period = new DatePeriod($period_start, $interval, $period_end);
+        
+        foreach ($period as $date) {
+            $date_str = $date->format('Y-m-d');
+            if ($date_str >= $start_date && $date_str <= $end_date) {
+                $expenses[] = [
+                    'amount' => $row['amount'],
+                    'category' => $row['category'],
+                    'date' => $date_str,
+                    'payment_method' => $row['payment_method'],
+                    'description' => $row['description'] . ' (Recurring)'
+                ];
+            }
+        }
+    }
+    
+    return $expenses;
+}
+
+$current_expenses = fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map);
+$comparison_expenses = fetchExpenses($conn, $user_id, $comp_start_date, $comp_end_date, $category_map);
+
+// Calculate metrics
+function calculateMetrics($expenses, $category_map, $budgets) {
+    $total = 0;
+    $category_breakdown = [];
+    $daily_expenses = [];
+    $payment_method_breakdown = [];
+    
+    foreach ($expenses as $expense) {
+        $amount = $expense['amount'];
+        $total += $amount;
+        
+        $category_id = $expense['category'];
+        $category_name = $category_map[$category_id] ?? 'Uncategorized';
+        $category_breakdown[$category_name] = ($category_breakdown[$category_name] ?? 0) + $amount;
+        
+        $date = $expense['date'];
+        $daily_expenses[$date] = ($daily_expenses[$date] ?? 0) + $amount;
+        
+        $payment_method = $expense['payment_method'] ?? 'Unknown';
+        $payment_method_breakdown[$payment_method] = ($payment_method_breakdown[$payment_method] ?? 0) + $amount;
+    }
+    
+    arsort($category_breakdown);
+    
+    return [
+        'total' => $total,
+        'category_breakdown' => $category_breakdown,
+        'daily_expenses' => $daily_expenses,
+        'payment_method_breakdown' => $payment_method_breakdown,
+        'transaction_count' => count($expenses)
+    ];
+}
+
+$current_metrics = calculateMetrics($current_expenses, $category_map, $budgets);
+$comparison_metrics = calculateMetrics($comparison_expenses, $category_map, $budgets);
+
+// Calculate budget utilization
+$budget_status = [];
 $total_budgeted = 0;
-$total_spent_in_budgeted_categories = 0;
-foreach ($budgets as $category => $budget) {
-    $category_id = array_search($category, $category_map); // Reverse map to ID if needed
-    $spent = $category_breakdown[$category] ?? 0;
-    $total_budgeted += $budget;
-    $total_spent_in_budgeted_categories += $spent;
+$total_spent_budgeted = 0;
+
+foreach ($budgets as $category_name => $budget_info) {
+    $spent = $current_metrics['category_breakdown'][$category_name] ?? 0;
+    $budget_amount = $budget_info['amount'];
+    $total_budgeted += $budget_amount;
+    $total_spent_budgeted += $spent;
+    
+    $utilization = $budget_amount > 0 ? ($spent / $budget_amount) * 100 : 0;
+    
+    $budget_status[$category_name] = [
+        'spent' => $spent,
+        'budget' => $budget_amount,
+        'utilization' => $utilization,
+        'remaining' => $budget_amount - $spent,
+        'status' => $utilization >= 100 ? 'over' : ($utilization >= 90 ? 'warning' : 'good')
+    ];
 }
-if ($total_budgeted > 0) {
-    $percent_used = ($total_spent_in_budgeted_categories / $total_budgeted) * 100;
-    if ($percent_used >= 100) {
-        $overall_budget_status = 'Over Budget';
-    } elseif ($percent_used >= 90) {
-        $overall_budget_status = 'Approaching Limit';
-    } else {
-        $overall_budget_status = 'Under Budget';
-    }
-}
+
+// Calculate trends
+$spending_change = $comparison_metrics['total'] > 0 
+    ? (($current_metrics['total'] - $comparison_metrics['total']) / $comparison_metrics['total']) * 100 
+    : 0;
+
+$transaction_change = $comparison_metrics['transaction_count'] > 0
+    ? (($current_metrics['transaction_count'] - $comparison_metrics['transaction_count']) / $comparison_metrics['transaction_count']) * 100
+    : 0;
+
+// Prepare daily trend data
+ksort($current_metrics['daily_expenses']);
+$trend_labels = array_keys($current_metrics['daily_expenses']);
+$trend_data = array_values($current_metrics['daily_expenses']);
+
+// Calculate average daily spending
+$days_count = count($current_metrics['daily_expenses']) ?: 1;
+$avg_daily = $current_metrics['total'] / $days_count;
 
 // Generate insights
 $insights = [];
-if ($top_category !== 'N/A' && $total_spent > 0) {
-    if ($average_daily > 100) {
-        $insights[] = "Your average daily spending is high (KES " . number_format($average_daily, 2) . "). Consider reviewing discretionary expenses.";
+if ($current_metrics['total'] > 0) {
+    // Spending change insight
+    if (abs($spending_change) > 10) {
+        $direction = $spending_change > 0 ? 'increased' : 'decreased';
+        $insights[] = [
+            'icon' => $spending_change > 0 ? 'fa-arrow-up' : 'fa-arrow-down',
+            'type' => $spending_change > 0 ? 'warning' : 'success',
+            'message' => "Your spending has $direction by " . number_format(abs($spending_change), 1) . "% compared to the previous period."
+        ];
     }
-    if (($category_breakdown[$top_category] / $total_spent) > 0.5) {
-        $insights[] = "Over 50% of your spending is in $top_category. Diversify your spending or set a stricter budget.";
+    
+    // Top category insight
+    if (!empty($current_metrics['category_breakdown'])) {
+        $top_category = array_key_first($current_metrics['category_breakdown']);
+        $top_amount = $current_metrics['category_breakdown'][$top_category];
+        $percentage = ($top_amount / $current_metrics['total']) * 100;
+        
+        if ($percentage > 40) {
+            $insights[] = [
+                'icon' => 'fa-chart-pie',
+                'type' => 'info',
+                'message' => "$top_category accounts for " . number_format($percentage, 1) . "% of your spending (KES&nbsp;" . number_format($top_amount, 2) . ")."
+            ];
+        }
     }
-    if ($total_spent_in_budgeted_categories > $total_budgeted) {
-        $insights[] = "You’ve exceeded your overall budget by KES " . number_format($total_spent_in_budgeted_categories - $total_budgeted, 2) . ". Reduce spending in over-budget categories.";
+    
+    // Budget alerts
+    foreach ($budget_status as $category => $status) {
+        if ($status['status'] === 'over') {
+            $overspent = $status['spent'] - $status['budget'];
+            $insights[] = [
+                'icon' => 'fa-exclamation-triangle',
+                'type' => 'danger',
+                'message' => "You've exceeded your $category budget by KES&nbsp;" . number_format($overspent, 2) . "."
+            ];
+        } elseif ($status['status'] === 'warning') {
+            $insights[] = [
+                'icon' => 'fa-exclamation-circle',
+                'type' => 'warning',
+                'message' => "You're approaching your $category budget limit (" . number_format($status['utilization'], 1) . "% used)."
+            ];
+        }
     }
+    
+    // Average spending insight
+    if ($avg_daily > 1000) {
+        $insights[] = [
+            'icon' => 'fa-info-circle',
+            'type' => 'info',
+            'message' => "Your average daily spending is KES&nbsp;" . number_format($avg_daily, 2) . ". Consider setting daily spending limits."
+        ];
+    }
+}
+
+if (empty($insights)) {
+    $insights[] = [
+        'icon' => 'fa-check-circle',
+        'type' => 'success',
+        'message' => "Great job! Your spending is well-managed and within budget."
+    ];
 }
 ?>
 
@@ -257,11 +293,665 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expense Reports - Expense Tracker</title>
+    <title>Enhanced Reports - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* Modern UI Enhancements */
+        .reports-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Loading Skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        body.dark .skeleton {
+            background: linear-gradient(90deg, #2d2d2d 25%, #3d3d3d 50%, #2d2d2d 75%);
+            background-size: 200% 100%;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        /* Enhanced Filter Panel */
+        .filter-panel-modern {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+        
+        body.dark .filter-panel-modern {
+            background: #1f2937;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .filter-group label {
+            font-weight: 500;
+            font-size: 14px;
+            color: #4b5563;
+        }
+        
+        body.dark .filter-group label {
+            color: #9ca3af;
+        }
+        
+        .filter-group select {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            transition: all 0.2s;
+        }
+        
+        body.dark .filter-group select {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f3f4f6;
+        }
+        
+        .filter-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .filter-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .btn-primary, .btn-secondary {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        body.dark .btn-secondary {
+            background: #374151;
+            color: #f3f4f6;
+        }
+        
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+        
+        body.dark .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        /* Enhanced Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        body.dark .metric-card {
+            background: #1f2937;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        body.dark .metric-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        .metric-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .metric-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .metric-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .metric-icon.green { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+        .metric-icon.purple { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+        .metric-icon.orange { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+        
+        .metric-title {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        body.dark .metric-title {
+            color: #9ca3af;
+        }
+        
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        
+        body.dark .metric-value {
+            color: #f3f4f6;
+        }
+        
+        .metric-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        
+        .metric-change.positive {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        
+        .metric-change.negative {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+        
+        .metric-change.neutral {
+            background: rgba(107, 114, 128, 0.1);
+            color: #6b7280;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 24px;
+        }
+        
+        body.dark .chart-container {
+            background: #1f2937;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        body.dark .chart-title {
+            color: #f3f4f6;
+        }
+        
+        .chart-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .chart-toggle {
+            padding: 6px 12px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        body.dark .chart-toggle {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f3f4f6;
+        }
+        
+        .chart-toggle.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        /* Budget Performance */
+        .budget-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .budget-item {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .budget-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.05), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .budget-item:hover::before {
+            left: 100%;
+        }
+        
+        body.dark .budget-item {
+            background: #1f2937;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .budget-item::before {
+            background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.1), transparent);
+        }
+        
+        .budget-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+        }
+        
+        body.dark .budget-item:hover {
+            box-shadow: 0 8px 24px rgba(96, 165, 250, 0.2);
+        }
+        
+        .budget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .budget-category {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        body.dark .budget-category {
+            color: #f3f4f6;
+        }
+        
+        .budget-amounts {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        body.dark .budget-amounts {
+            color: #9ca3af;
+        }
+        
+        .budget-amount-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .budget-amount-label {
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+        
+        .budget-amount-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        body.dark .budget-amount-value {
+            color: #f3f4f6;
+        }
+        
+        .progress-bar-modern {
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        body.dark .progress-bar-modern {
+            background: #374151;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease, background-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .progress-fill.good { background: linear-gradient(90deg, #22c55e, #16a34a); }
+        .progress-fill.warning { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .progress-fill.danger { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        
+        .budget-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .budget-status-badge.good {
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+        }
+        
+        .budget-status-badge.warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+        
+        .budget-status-badge.danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+        
+        /* Insights Panel */
+        .insights-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .insights-container:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        body.dark .insights-container {
+            background: #1f2937;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .insights-container:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        .insight-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .insight-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .insight-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .insight-item.info {
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .insight-item.success {
+            background: rgba(34, 197, 94, 0.05);
+            border-left: 4px solid #22c55e;
+        }
+        
+        .insight-item.warning {
+            background: rgba(245, 158, 11, 0.05);
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .insight-item.danger {
+            background: rgba(239, 68, 68, 0.05);
+            border-left: 4px solid #ef4444;
+        }
+        
+        .insight-icon {
+            font-size: 20px;
+            width: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .insight-item.info .insight-icon { color: #3b82f6; }
+        .insight-item.success .insight-icon { color: #22c55e; }
+        .insight-item.warning .insight-icon { color: #f59e0b; }
+        .insight-item.danger .insight-icon { color: #ef4444; }
+        
+        .insight-content {
+            flex: 1;
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        body.dark .insight-content {
+            color: #d1d5db;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        
+        .empty-state-icon {
+            font-size: 64px;
+            color: #d1d5db;
+            margin-bottom: 16px;
+        }
+        
+        body.dark .empty-state-icon {
+            color: #4b5563;
+        }
+        
+        .empty-state-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        
+        body.dark .empty-state-title {
+            color: #9ca3af;
+        }
+        
+        .empty-state-message {
+            font-size: 14px;
+            color: #9ca3af;
+        }
+        
+        body.dark .empty-state-message {
+            color: #6b7280;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+        }
+        
+        /* Tooltip */
+        .tooltip-hint {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            cursor: help;
+        }
+        
+        .tooltip-hint:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 12px;
+            background: #1f2937;
+            color: white;
+            font-size: 12px;
+            border-radius: 6px;
+            white-space: nowrap;
+            margin-bottom: 8px;
+            z-index: 1000;
+        }
+        
+        /* Export Buttons */
+        .export-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-export {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #374151;
+        }
+        
+        body.dark .btn-export {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f3f4f6;
+        }
+        
+        .btn-export:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+        
+        body.dark .btn-export:hover {
+            background: #4b5563;
+        }
+    </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <nav class="navbar">
@@ -270,7 +960,7 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
             <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
             <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
             <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
-            <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li><a href="reports_enhanced.php" class="active"><i class="fas fa-chart-line"></i> Reports</a></li>
             <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
         </ul>
         <div class="user-profile">
@@ -282,278 +972,518 @@ if ($top_category !== 'N/A' && $total_spent > 0) {
             <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
     </nav>
-    <div class="container">
-        <h1>Expense Reports & Insights</h1>
 
-        <!-- Filter Controls -->
-        <div class="filter-panel" id="filterPanel">
-            <div class="filter-toggle" onclick="toggleFilters()">Filters ▼</div>
-            <div class="filter-content">
-                <form method="POST" action="reports.php">
-                    <label for="time_period">Time Period:</label>
-                    <select id="time_period" name="time_period" onchange="toggleCustomRange()">
-                        <option value="this_week" <?php echo $time_period === 'this_week' ? 'selected' : ''; ?>>This Week</option>
-                        <option value="last_week" <?php echo $time_period === 'last_week' ? 'selected' : ''; ?>>Last Week</option>
-                        <option value="this_month" <?php echo $time_period === 'this_month' ? 'selected' : ''; ?>>This Month</option>
-                        <option value="last_month" <?php echo $time_period === 'last_month' ? 'selected' : ''; ?>>Last Month</option>
-                        <option value="custom" <?php echo $time_period === 'custom' ? 'selected' : ''; ?>>Custom Range</option>
-                    </select>
+    <div class="reports-container">
+        <h1 style="margin-bottom: 24px; font-size: 32px; font-weight: 700;">
+            <i class="fas fa-chart-line" style="color: #3b82f6;"></i> Reports & Analytics
+        </h1>
 
-                    <label for="category">Category:</label>
-                    <select id="category" name="category">
-                        <option value="all">All Categories</option>
-                        <?php foreach ($categories as $category): ?>
-                            <option value="<?php echo htmlspecialchars($category); ?>" <?php echo $selected_category === $category ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($category); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <label for="payment_method">Payment Method:</label>
-                    <select id="payment_method" name="payment_method">
-                        <option value="all">All Payment Methods</option>
-                        <?php foreach ($payment_methods as $method): ?>
-                            <option value="<?php echo htmlspecialchars($method); ?>" <?php echo $selected_payment_method === $method ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($method); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <div id="customRange" style="display: <?php echo $time_period === 'custom' ? 'block' : 'none'; ?>;">
-                        <label for="start_date">Start Date:</label>
-                        <input type="date" id="start_date" name="start_date" value="<?php echo htmlspecialchars($start_date); ?>">
-                        <label for="end_date">End Date:</label>
-                        <input type="date" id="end_date" name="end_date" value="<?php echo htmlspecialchars($end_date); ?>">
+        <!-- Filter Panel -->
+        <div class="filter-panel-modern">
+            <form method="GET" action="reports.php" id="filterForm">
+                <div class="filter-grid">
+                    <div class="filter-group">
+                        <label for="time_period">
+                            <i class="fas fa-calendar"></i> Current Period
+                        </label>
+                        <select id="time_period" name="time_period" onchange="document.getElementById('filterForm').submit()">
+                            <option value="last_7_days" <?php echo $time_period === 'last_7_days' ? 'selected' : ''; ?>>Last 7 Days</option>
+                            <option value="last_30_days" <?php echo $time_period === 'last_30_days' ? 'selected' : ''; ?>>Last 30 Days</option>
+                            <option value="this_week" <?php echo $time_period === 'this_week' ? 'selected' : ''; ?>>This Week</option>
+                            <option value="last_week" <?php echo $time_period === 'last_week' ? 'selected' : ''; ?>>Last Week</option>
+                            <option value="this_month" <?php echo $time_period === 'this_month' ? 'selected' : ''; ?>>This Month</option>
+                            <option value="last_month" <?php echo $time_period === 'last_month' ? 'selected' : ''; ?>>Last Month</option>
+                            <option value="this_year" <?php echo $time_period === 'this_year' ? 'selected' : ''; ?>>This Year</option>
+                            <option value="last_year" <?php echo $time_period === 'last_year' ? 'selected' : ''; ?>>Last Year</option>
+                        </select>
                     </div>
-
-                    <button type="submit">Apply Filters</button>
-                </form>
-            </div>
+                    
+                    <div class="filter-group">
+                        <label for="comparison_period">
+                            <i class="fas fa-exchange-alt"></i> Compare With
+                        </label>
+                        <select id="comparison_period" name="comparison_period" onchange="document.getElementById('filterForm').submit()">
+                            <option value="last_7_days" <?php echo $comparison_period === 'last_7_days' ? 'selected' : ''; ?>>Last 7 Days</option>
+                            <option value="last_30_days" <?php echo $comparison_period === 'last_30_days' ? 'selected' : ''; ?>>Last 30 Days</option>
+                            <option value="this_week" <?php echo $comparison_period === 'this_week' ? 'selected' : ''; ?>>This Week</option>
+                            <option value="last_week" <?php echo $comparison_period === 'last_week' ? 'selected' : ''; ?>>Last Week</option>
+                            <option value="this_month" <?php echo $comparison_period === 'this_month' ? 'selected' : ''; ?>>This Month</option>
+                            <option value="last_month" <?php echo $comparison_period === 'last_month' ? 'selected' : ''; ?>>Last Month</option>
+                            <option value="this_year" <?php echo $comparison_period === 'this_year' ? 'selected' : ''; ?>>This Year</option>
+                            <option value="last_year" <?php echo $comparison_period === 'last_year' ? 'selected' : ''; ?>>Last Year</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="filter-actions">
+                    <button type="button" class="btn-secondary" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                    <button type="button" class="btn-export" onclick="exportToPDF()">
+                        <i class="fas fa-file-pdf"></i> Export PDF
+                    </button>
+                    <button type="button" class="btn-export" onclick="exportToCSV()">
+                        <i class="fas fa-file-csv"></i> Export CSV
+                    </button>
+                </div>
+            </form>
         </div>
 
         <!-- Summary Metrics -->
-        <div class="summary-cards">
-            <div class="bento-card summary-card">
-                <h2>Total Spent</h2>
-                <p>KES&nbsp;<?php echo number_format($total_spent, 2); ?></p>
+        <div class="summary-grid">
+            <div class="metric-card">
+                <div class="metric-card-header">
+                    <div>
+                        <div class="metric-title">Total Spending</div>
+                        <div class="metric-value">KES&nbsp;<?php echo number_format($current_metrics['total'], 2); ?></div>
+                        <?php if ($spending_change != 0): ?>
+                            <div class="metric-change <?php echo $spending_change > 0 ? 'positive' : 'negative'; ?>">
+                                <i class="fas fa-arrow-<?php echo $spending_change > 0 ? 'up' : 'down'; ?>"></i>
+                                <?php echo number_format(abs($spending_change), 1); ?>%
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="metric-icon blue">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                </div>
             </div>
-            <div class="bento-card summary-card">
-                <h2>Average Daily Spending</h2>
-                <p>KES&nbsp;<?php echo number_format($average_daily, 2); ?></p>
+            
+            <div class="metric-card">
+                <div class="metric-card-header">
+                    <div>
+                        <div class="metric-title">Avg. Daily Spending</div>
+                        <div class="metric-value">KES&nbsp;<?php echo number_format($avg_daily, 2); ?></div>
+                        <div class="metric-change neutral">
+                            <i class="fas fa-calendar-day"></i>
+                            <?php echo $days_count; ?> days
+                        </div>
+                    </div>
+                    <div class="metric-icon green">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                </div>
             </div>
-            <div class="bento-card summary-card">
-                <h2>Top Category</h2>
-                <p><?php echo htmlspecialchars($top_category !== 'N/A' ? $top_category : 'N/A'); ?></p>
+            
+            <div class="metric-card">
+                <div class="metric-card-header">
+                    <div>
+                        <div class="metric-title">Transactions</div>
+                        <div class="metric-value"><?php echo $current_metrics['transaction_count']; ?></div>
+                        <?php if ($transaction_change != 0): ?>
+                            <div class="metric-change <?php echo $transaction_change > 0 ? 'positive' : 'negative'; ?>">
+                                <i class="fas fa-arrow-<?php echo $transaction_change > 0 ? 'up' : 'down'; ?>"></i>
+                                <?php echo number_format(abs($transaction_change), 1); ?>%
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="metric-icon purple">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                </div>
             </div>
-            <div class="bento-card summary-card">
-                <h2>Budget Status</h2>
-                <p><?php echo htmlspecialchars($overall_budget_status); ?></p>
+            
+            <div class="metric-card">
+                <div class="metric-card-header">
+                    <div>
+                        <div class="metric-title">Budget Status</div>
+                        <div class="metric-value">
+                            <?php 
+                            $overall_utilization = $total_budgeted > 0 ? ($total_spent_budgeted / $total_budgeted) * 100 : 0;
+                            echo number_format($overall_utilization, 1); ?>%
+                        </div>
+                        <div class="metric-change <?php 
+                            echo $overall_utilization >= 100 ? 'positive' : ($overall_utilization >= 90 ? 'neutral' : 'negative'); 
+                        ?>">
+                            <?php 
+                            if ($overall_utilization >= 100) {
+                                echo '<i class="fas fa-exclamation-circle"></i> Over Budget';
+                            } elseif ($overall_utilization >= 90) {
+                                echo '<i class="fas fa-exclamation-triangle"></i> Near Limit';
+                            } else {
+                                echo '<i class="fas fa-check-circle"></i> On Track';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                    <div class="metric-icon orange">
+                        <i class="fas fa-bullseye"></i>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Visual Reports -->
-        <div class="bento-card">
-            <h2>Spending Patterns</h2>
-            <?php if (!empty($category_breakdown)): ?>
-                <canvas id="categoryPieChart"></canvas>
-                <canvas id="expenseLineGraph"></canvas>
+        <!-- Insights Panel -->
+        <div class="insights-container">
+            <div class="chart-header">
+                <h2 class="chart-title"><i class="fas fa-lightbulb"></i> Spending Insights</h2>
+            </div>
+            <?php foreach ($insights as $insight): ?>
+                <div class="insight-item <?php echo $insight['type']; ?>">
+                    <div class="insight-icon">
+                        <i class="fas <?php echo $insight['icon']; ?>"></i>
+                    </div>
+                    <div class="insight-content">
+                        <?php echo $insight['message']; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Spending Trend Chart -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h2 class="chart-title"><i class="fas fa-chart-area"></i> Spending Trend Analysis</h2>
+                <div class="chart-actions">
+                    <button class="chart-toggle active" data-chart="line">
+                        <i class="fas fa-chart-line"></i> Line
+                    </button>
+                    <button class="chart-toggle" data-chart="bar">
+                        <i class="fas fa-chart-bar"></i> Bar
+                    </button>
+                </div>
+            </div>
+            <?php if (empty($trend_data)): ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="empty-state-title">No Data Available</div>
+                    <div class="empty-state-message">Start tracking expenses to see your spending trends</div>
+                </div>
             <?php else: ?>
-                <p>No data to display visualizations.</p>
+                <canvas id="trendChart" height="80"></canvas>
             <?php endif; ?>
         </div>
 
-        <!-- Budget against Spending -->
-        <div class="bento-card">
-            <h2>Budget against Spending</h2>
-            <?php if (empty($category_breakdown)): ?>
-                <p>No expenses found for the selected filters.</p>
+        <!-- Category Breakdown -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h2 class="chart-title"><i class="fas fa-chart-pie"></i> Category Breakdown</h2>
+            </div>
+            <?php if (empty($current_metrics['category_breakdown'])): ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-chart-pie"></i></div>
+                    <div class="empty-state-title">No Categories Yet</div>
+                    <div class="empty-state-message">Add expenses to see category breakdown</div>
+                </div>
             <?php else: ?>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Category</th>
-                            <th>Spent (KES)</th>
-                            <th>Budget (KES)</th>
-                            <th>Progress</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($category_breakdown as $category => $amount): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($category); ?></td>
-                                <td><?php echo number_format($amount, 2); ?></td>
-                                <td>
-                                    <?php
-                                    if (isset($budgets[$category])) {
-                                        echo number_format($budgets[$category], 2);
-                                    } else {
-                                        echo 'No budget set';
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php if (isset($budgets[$category])): ?>
-                                        <?php
-                                        $budget = $budgets[$category];
-                                        $percent_used = $budget > 0 ? ($amount / $budget) * 100 : 0;
-                                        $percent_used = min($percent_used, 100);
-                                        $progress_class = $percent_used >= 100 ? 'red' : ($percent_used >= 90 ? 'yellow' : 'green');
-                                        ?>
-                                        <div class="progress-bar">
-                                            <div class="progress <?php echo $progress_class; ?>" style="width: <?php echo $percent_used; ?>%;"></div>
-                                        </div>
-                                    <?php else: ?>
-                                        -
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div style="max-width: 500px; margin: 0 auto;">
+                    <canvas id="categoryChart"></canvas>
+                </div>
             <?php endif; ?>
         </div>
 
-        <!-- Insights and Recommendations -->
-        <div class="bento-card">
-            <h2>Insights and Recommendations</h2>
-            <?php if (empty($insights)): ?>
-                <p>No insights available for the selected filters.</p>
-            <?php else: ?>
-                <?php foreach ($insights as $insight): ?>
-                    <div class="insight"><?php echo htmlspecialchars($insight); ?></div>
+        <!-- Budget Performance Dashboard -->
+        <?php if (!empty($budget_status)): ?>
+        <div class="chart-container">
+            <div class="chart-header">
+                <h2 class="chart-title"><i class="fas fa-tachometer-alt"></i> Budget Performance Dashboard</h2>
+            </div>
+            <div class="budget-list">
+                <?php foreach ($budget_status as $category => $status): ?>
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <div class="budget-category">
+                                <i class="fas fa-tag"></i> <?php echo htmlspecialchars($category); ?>
+                            </div>
+                            <div class="budget-status-badge <?php echo $status['status'] === 'over' ? 'danger' : ($status['status'] === 'warning' ? 'warning' : 'good'); ?>">
+                                <?php 
+                                if ($status['status'] === 'over') {
+                                    echo '<i class="fas fa-times-circle"></i> Over Budget';
+                                } elseif ($status['status'] === 'warning') {
+                                    echo '<i class="fas fa-exclamation-circle"></i> Warning';
+                                } else {
+                                    echo '<i class="fas fa-check-circle"></i> Good';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                        
+                        <div class="budget-amounts">
+                            <div class="budget-amount-item">
+                                <span class="budget-amount-label">Spent</span>
+                                <span class="budget-amount-value">KES&nbsp;<?php echo number_format($status['spent'], 2); ?></span>
+                            </div>
+                            <div class="budget-amount-item">
+                                <span class="budget-amount-label">Budget</span>
+                                <span class="budget-amount-value">KES&nbsp;<?php echo number_format($status['budget'], 2); ?></span>
+                            </div>
+                            <div class="budget-amount-item">
+                                <span class="budget-amount-label">Remaining</span>
+                                <span class="budget-amount-value" style="color: <?php echo $status['remaining'] < 0 ? '#ef4444' : '#22c55e'; ?>">
+                                    KES&nbsp;<?php echo number_format($status['remaining'], 2); ?>
+                                </span>
+                            </div>
+                            <div class="budget-amount-item">
+                                <span class="budget-amount-label">Used</span>
+                                <span class="budget-amount-value"><?php echo number_format($status['utilization'], 1); ?>%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-bar-modern">
+                            <div class="progress-fill <?php echo $status['status'] === 'over' ? 'danger' : ($status['status'] === 'warning' ? 'warning' : 'good'); ?>" 
+                                 style="width: <?php echo min($status['utilization'], 100); ?>%"></div>
+                        </div>
+                    </div>
                 <?php endforeach; ?>
-            <?php endif; ?>
+            </div>
         </div>
-    </div>
-    </div>
-        
-        <!-- Footer -->
-        <?php if (!in_array(basename($_SERVER['PHP_SELF']), ['login.php', 'register.php', 'logout.php'])) {
-            include 'footer.html';
-        } ?>
+        <?php endif; ?>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Footer -->
+    <?php include 'footer.html'; ?>
+
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
     <script>
-        let pieChart, lineChart;
-        function toggleFilters() {
-            const panel = document.getElementById('filterPanel');
-            const content = panel.querySelector('.filter-content');
-            panel.classList.toggle('collapsed');
-            content.style.display = panel.classList.contains('collapsed') ? 'none' : 'flex';
-        }
-
-        function toggleCustomRange() {
-            const timePeriod = document.getElementById('time_period').value;
-            const customRange = document.getElementById('customRange');
-            customRange.style.display = timePeriod === 'custom' ? 'block' : 'none';
-        }
-
-        function updateCharts(theme) {
-            const isDark = theme === 'dark';
-            const pieColors = isDark
-                ? ['#EF4444', '#60a5fa', '#FBBF24', '#34D399', '#A78BFA', '#F472B6', '#93C5FD', '#4ADE80', '#FB923C', '#38BDF8']
-                : ['#EF4444', '#1E3A8A', '#F59E0B', '#15803d', '#8B5CF6', '#EC4899', '#93C5FD', '#22C55E', '#F97316', '#0EA5E9'];
-            const lineBorderColor = isDark ? '#60a5fa' : '#1E3A8A';
-            const lineBackgroundColor = isDark ? 'rgba(96, 165, 250, 0.2)' : 'rgba(30, 58, 138, 0.2)';
-            const textColor = isDark ? '#D1D5DB' : '#333';
-            const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
-
-            if (pieChart) {
-                pieChart.data.datasets[0].backgroundColor = pieColors;
-                pieChart.options.plugins.legend.labels.color = textColor;
-                pieChart.options.plugins.title.color = textColor;
-                pieChart.update();
-            }
-            if (lineChart) {
-                lineChart.data.datasets[0].borderColor = lineBorderColor;
-                lineChart.data.datasets[0].backgroundColor = lineBackgroundColor;
-                lineChart.options.plugins.legend.labels.color = textColor;
-                lineChart.options.plugins.title.color = textColor;
-                lineChart.options.scales.x.title.color = textColor;
-                lineChart.options.scales.y.title.color = textColor;
-                lineChart.options.scales.x.grid.color = gridColor;
-                lineChart.options.scales.y.grid.color = gridColor;
-                lineChart.options.scales.x.ticks.color = textColor;
-                lineChart.options.scales.y.ticks.color = textColor;
-                lineChart.update();
-            }
-        }
-
-        <?php if (!empty($category_breakdown)): ?>
-            
-            const categoryCtx = document.getElementById('categoryPieChart').getContext('2d');
-            pieChart = new Chart(categoryCtx, {
-                type: 'pie',
-                data: {
-                    labels: <?php echo json_encode(array_keys($category_breakdown)); ?>,
-                    datasets: [{
-                        data: <?php echo json_encode(array_values($category_breakdown)); ?>,
-                        backgroundColor: []
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top', labels: { color: '' } },
-                        title: { display: true, text: 'Expense Distribution by Category', color: '' },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.label || '';
-                                    let value = context.raw || 0;
-                                    let total = context.dataset.data.reduce((sum, val) => sum + val, 0);
-                                    let percentage = ((value / total) * 100).toFixed(2);
-                                    return `${label}: KES ${value.toFixed(2)} (${percentage}%)`; // Display exact category name
-                                }
-                            }
+        // Initialize charts
+        let trendChart, categoryChart;
+        
+        const isDarkMode = () => document.body.classList.contains('dark');
+        
+        const getChartColors = () => {
+            const dark = isDarkMode();
+            return {
+                primary: dark ? '#60a5fa' : '#3b82f6',
+                background: dark ? 'rgba(96, 165, 250, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                text: dark ? '#d1d5db' : '#374151',
+                grid: dark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                categoryColors: dark 
+                    ? ['#ef4444', '#60a5fa', '#fbbf24', '#34d399', '#a78bfa', '#f472b6', '#fb923c', '#38bdf8']
+                    : ['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#8b5cf6', '#ec4899', '#f97316', '#0ea5e9']
+            };
+        };
+        
+        <?php if (!empty($trend_data)): ?>
+        // Trend Chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        const colors = getChartColors();
+        
+        trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($trend_labels); ?>,
+                datasets: [{
+                    label: 'Daily Spending',
+                    data: <?php echo json_encode($trend_data); ?>,
+                    borderColor: colors.primary,
+                    backgroundColor: colors.background,
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: colors.primary
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: isDarkMode() ? '#1f2937' : '#ffffff',
+                        titleColor: colors.text,
+                        bodyColor: colors.text,
+                        borderColor: colors.grid,
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        callbacks: {
+                            label: (context) => `KES ${context.raw.toFixed(2)}`
                         }
                     }
-                }
-            });
-
-            const lineCtx = document.getElementById('expenseLineGraph').getContext('2d');
-            lineChart = new Chart(lineCtx, {
-                type: 'line',
-                data: {
-                    labels: <?php echo json_encode($labels); ?>,
-                    datasets: [{
-                        label: 'Daily Expenses',
-                        data: <?php echo json_encode($line_data); ?>,
-                        borderColor: '',
-                        backgroundColor: '',
-                        fill: true,
-                        tension: 0.1
-                    }]
                 },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top', labels: { color: '' } },
-                        title: { display: true, text: 'Expenses Over Time', color: '' },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    let value = context.raw || 0;
-                                    return `${label}: KES ${value.toFixed(2)}`;
-                                }
-                            }
+                scales: {
+                    x: {
+                        grid: {
+                            color: colors.grid,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: colors.text,
+                            font: { size: 11 }
                         }
                     },
-                    scales: {
-                        x: { title: { display: true, text: 'Date', color: '' }, grid: { color: '' }, ticks: { color: '' } },
-                        y: { title: { display: true, text: 'Amount (KES)', color: '' }, beginAtZero: true, grid: { color: '' }, ticks: { color: '' } }
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: colors.grid,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: colors.text,
+                            font: { size: 11 },
+                            callback: (value) => `KES ${value}`
+                        }
                     }
                 }
+            }
+        });
+        
+        // Chart type toggle
+        document.querySelectorAll('.chart-toggle').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.chart-toggle').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                const type = this.dataset.chart;
+                trendChart.config.type = type;
+                trendChart.update();
             });
+        });
         <?php endif; ?>
         
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || '<?php echo $theme; ?>';
-            updateCharts(savedTheme);
+        <?php if (!empty($current_metrics['category_breakdown'])): ?>
+        // Category Chart
+        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+        
+        categoryChart = new Chart(categoryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: <?php echo json_encode(array_keys($current_metrics['category_breakdown'])); ?>,
+                datasets: [{
+                    data: <?php echo json_encode(array_values($current_metrics['category_breakdown'])); ?>,
+                    backgroundColor: colors.categoryColors,
+                    borderWidth: 2,
+                    borderColor: isDarkMode() ? '#1f2937' : '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: colors.text,
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: isDarkMode() ? '#1f2937' : '#ffffff',
+                        titleColor: colors.text,
+                        bodyColor: colors.text,
+                        borderColor: colors.grid,
+                        borderWidth: 1,
+                        padding: 12,
+                        callbacks: {
+                            label: (context) => {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: KES ${value.toFixed(2)} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
         });
+        <?php endif; ?>
+        
+        // Update charts on theme change
+        function updateChartsTheme() {
+            const colors = getChartColors();
+            
+            if (trendChart) {
+                trendChart.data.datasets[0].borderColor = colors.primary;
+                trendChart.data.datasets[0].backgroundColor = colors.background;
+                trendChart.data.datasets[0].pointBackgroundColor = colors.primary;
+                trendChart.options.scales.x.grid.color = colors.grid;
+                trendChart.options.scales.y.grid.color = colors.grid;
+                trendChart.options.scales.x.ticks.color = colors.text;
+                trendChart.options.scales.y.ticks.color = colors.text;
+                trendChart.update('none');
+            }
+            
+            if (categoryChart) {
+                categoryChart.data.datasets[0].backgroundColor = colors.categoryColors;
+                categoryChart.data.datasets[0].borderColor = isDarkMode() ? '#1f2937' : '#ffffff';
+                categoryChart.options.plugins.legend.labels.color = colors.text;
+                categoryChart.update('none');
+            }
+        }
+        
+        // Listen for theme changes
+        const observer = new MutationObserver(() => updateChartsTheme());
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        
+        // Clear filters function
+        function clearFilters() {
+            window.location.href = 'reports.php';
+        }
+        
+        // Export functions
+        function exportToPDF() {
+            window.print();
+        }
+        
+        function exportToCSV() {
+            // Prepare comprehensive CSV data with all filtered expenses
+            let csv = 'EXPENSE REPORT\n';
+            csv += 'Period: <?php echo $time_period; ?>\n';
+            csv += 'Date Range: <?php echo $start_date; ?> to <?php echo $end_date; ?>\n';
+            csv += 'Generated: ' + new Date().toLocaleString() + '\n\n';
+            
+            // Summary Section
+            csv += 'SUMMARY\n';
+            csv += 'Total Spending,<?php echo $current_metrics['total']; ?>\n';
+            csv += 'Average Daily Spending,<?php echo $avg_daily; ?>\n';
+            csv += 'Total Transactions,<?php echo $current_metrics['transaction_count']; ?>\n';
+            csv += 'Budget Utilization,<?php echo $overall_utilization; ?>%\n\n';
+            
+            // Detailed Expenses
+            csv += 'DETAILED EXPENSES\n';
+            csv += 'Date,Category,Amount,Payment Method,Description\n';
+            <?php foreach ($current_expenses as $expense): ?>
+            csv += '<?php echo $expense['date']; ?>,';
+            csv += '<?php echo addslashes($category_map[$expense['category']] ?? 'Uncategorized'); ?>,';
+            csv += '<?php echo $expense['amount']; ?>,';
+            csv += '<?php echo addslashes($expense['payment_method'] ?? 'N/A'); ?>,';
+            csv += '<?php echo addslashes($expense['description'] ?? ''); ?>\n';
+            <?php endforeach; ?>
+            
+            csv += '\n';
+            
+            // Category Breakdown
+            csv += 'CATEGORY BREAKDOWN\n';
+            csv += 'Category,Amount,Percentage\n';
+            <?php 
+            $total = $current_metrics['total'];
+            foreach ($current_metrics['category_breakdown'] as $category => $amount): 
+                $percentage = $total > 0 ? ($amount / $total) * 100 : 0;
+            ?>
+            csv += '<?php echo addslashes($category); ?>,';
+            csv += '<?php echo $amount; ?>,';
+            csv += '<?php echo number_format($percentage, 2); ?>%\n';
+            <?php endforeach; ?>
+            
+            csv += '\n';
+            
+            // Budget Performance
+            csv += 'BUDGET PERFORMANCE\n';
+            csv += 'Category,Spent,Budget,Remaining,Utilization,Status\n';
+            <?php foreach ($budget_status as $category => $status): ?>
+            csv += '<?php echo addslashes($category); ?>,';
+            csv += '<?php echo $status['spent']; ?>,';
+            csv += '<?php echo $status['budget']; ?>,';
+            csv += '<?php echo $status['remaining']; ?>,';
+            csv += '<?php echo number_format($status['utilization'], 2); ?>%,';
+            csv += '<?php echo ucfirst($status['status']); ?>\n';
+            <?php endforeach; ?>
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'expense-report-<?php echo $time_period; ?>-' + new Date().toISOString().split('T')[0] + '.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
     </script>
 </body>
 </html>
