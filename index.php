@@ -31,13 +31,12 @@ if (isset($_SESSION['user_id'])) {
             <div class="logo">Expense Tracker</div>
             <div class="user-profile">
                 <?php if (isset($_SESSION['user_id']) && $user) { ?>
-                    <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0] ?? 'U')); ?></span>
-                    <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
-                    <button id="theme-toggle" class="theme-toggle">
-                        <i class="fas <?php echo ($settings['theme'] ?? 'light') === 'light' ? 'fa-sun' : 'fa-moon'; ?>"></i>
+                    <span class="avatar" data-username="<?php echo htmlspecialchars($user['username'] ?? 'Guest'); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0] ?? 'U')); ?></span>
+                    <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo ($settings['theme'] ?? 'light') === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
+                        <i class="fas <?php echo ($settings['theme'] ?? 'light') === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
                     </button>
                     <a href="dashboard.php" class="btn">Dashboard</a>
-                    <a href="logout.php" class="btn logout-btn">Logout</a>
+                    <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i></a>
                 <?php } else { ?>
                     <a href="auth.php?form=login" class="btn">Login</a>
                     <a href="auth.php?form=register" class="btn">Register</a>

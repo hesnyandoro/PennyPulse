@@ -556,18 +556,17 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         <ul class="nav-links">
             <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
-            <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
+            <li><a href="view_expenses.php" class="active"><i class="fas fa-list"></i> View Expenses</a></li>
             <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
             <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
             <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
         </ul>
-        <div class="user-profile">
-            <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
-            <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
-            <button id="theme-toggle" class="theme-toggle">
-                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-sun' : 'fa-moon'; ?>"></i>
+            <div class="user-profile">
+            <span class="avatar" data-username="<?php echo htmlspecialchars($user['username']); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+            <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo $settings['theme'] === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
+                <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
             </button>
-            <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i></a>
         </div>
     </nav>
 
@@ -809,6 +808,30 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
         <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
         <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const currentPage = window.location.pathname.split('/').pop() || 'index.php';
+                const pageMapping = {
+                    'index.php': 'Dashboard',
+                    'dashboard.php': 'Dashboard',
+                    'add_expense.php': 'Manage Expenses',
+                    'edit_expenses.php': 'Manage Expenses',
+                    'view_expenses.php': 'View Expenses',
+                    'set_budget.php': 'Budgets',
+                    'reports.php': 'Reports',
+                    'settings.php': 'Settings'
+                };
+                
+                const navLinks = document.querySelectorAll('.nav-links a');
+                navLinks.forEach(link => {
+                    const linkText = link.textContent.trim();
+                    const mappedPage = pageMapping[currentPage];
+                    
+                    if (linkText === mappedPage) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+
             function exportData(type) {
                 let data = [];
                 let table = document.querySelector('table');

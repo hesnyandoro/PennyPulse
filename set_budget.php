@@ -888,12 +888,11 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
                 <li><a href="settings.php"><i class="fas fa-cog"></i> Settings</a></li>
             </ul>
             <div class="user-profile">
-                <span class="avatar"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
-                <span class="username"><?php echo htmlspecialchars($user['username']); ?></span>
-                <button id="theme-toggle" class="theme-toggle">
-                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-sun' : 'fa-moon'; ?>"></i>
+                <span class="avatar" data-username="<?php echo htmlspecialchars($user['username']); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+                <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo $settings['theme'] === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
+                    <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
                 </button>
-                <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                <a href="logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i></a>
             </div>
         </nav>
 
@@ -1035,6 +1034,29 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Active Page Indicator
+            const currentPage = window.location.pathname.split('/').pop() || 'index.php';
+            const pageMapping = {
+                'index.php': 'Dashboard',
+                'dashboard.php': 'Dashboard',
+                'add_expense.php': 'Manage Expenses',
+                'edit_expenses.php': 'Manage Expenses',
+                'view_expenses.php': 'View Expenses',
+                'set_budget.php': 'Budgets',
+                'reports.php': 'Reports',
+                'settings.php': 'Settings'
+            };
+            
+            const navLinks = document.querySelectorAll('.nav-links a');
+            navLinks.forEach(link => {
+                const linkText = link.textContent.trim();
+                const mappedPage = pageMapping[currentPage];
+                
+                if (linkText === mappedPage) {
+                    link.classList.add('active');
+                }
+            });
+
             // Form Validation and Spinner
             const form = document.getElementById('budget-form');
             const saveBtn = document.getElementById('save-btn');

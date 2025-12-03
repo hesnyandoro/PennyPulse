@@ -202,7 +202,7 @@ body.dark {
 }
 
 .nav-links li {
-    margin: 0 15px;
+    margin: 0 5px;
 }
 
 .nav-links a {
@@ -212,11 +212,21 @@ body.dark {
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: opacity 0.3s;
+    padding: 10px 16px;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    position: relative;
 }
 
 .nav-links a:hover {
-    opacity: 0.8;
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.nav-links a.active {
+    background: rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .user-profile {
@@ -942,9 +952,9 @@ body.dark .filter-group select {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     width: 100%; /* card fills grid column */
     transition: transform 0.3s, box-shadow 0.3s;
+    box-sizing: border-box;
 }
 
-    box-sizing: border-box;
 body.dark .metric-card {
     background: var(--dark-bg);
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
