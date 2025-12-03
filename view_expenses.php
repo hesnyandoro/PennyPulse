@@ -487,6 +487,67 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
             background: rgba(239, 68, 68, 0.2);
             border-color: rgba(239, 68, 68, 0.3);
         }
+        
+        /* Dark mode for summary cards */
+        body.dark .summary-card {
+            background: #1f2937 !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        body.dark .summary-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+        }
+        
+        body.dark .summary-card h3 {
+            color: #9ca3af !important;
+        }
+        
+        body.dark .summary-card p {
+            color: #f9fafb !important;
+        }
+        
+        /* Dark mode for filter card */
+        body.dark .filter-card {
+            background: #1f2937 !important;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        body.dark .filter-card h2 {
+            color: #f9fafb !important;
+        }
+        
+        body.dark .filter-card label {
+            color: #d1d5db !important;
+        }
+        
+        body.dark .filter-card select,
+        body.dark .filter-card input {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border-color: #374151 !important;
+        }
+        
+        body.dark .filter-card select:focus,
+        body.dark .filter-card input:focus {
+            border-color: #3b82f6 !important;
+            background: #1f2937 !important;
+        }
+        
+        body.dark .export-btn {
+            background: #1f2937 !important;
+            color: #60a5fa !important;
+            border-color: #60a5fa !important;
+        }
+        
+        body.dark .export-btn:hover {
+            background: #60a5fa !important;
+            color: #1f2937 !important;
+        }
+        
+        body.dark .export-btn:last-child {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6) !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
@@ -577,7 +638,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
             </div>
         <?php endif; ?>
 
-        <div style="background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); margin-bottom: 24px; max-width: 100%;">
+        <div class="filter-card" style="background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); margin-bottom: 24px; max-width: 100%;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                 <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 8px;">
                     <i class="fas fa-filter" style="color: #3b82f6;"></i>
