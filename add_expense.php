@@ -535,7 +535,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <div class="logo">Expense Tracker</div>
             <ul class="nav-links">
                 <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="manage_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
+                <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
                 <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
                 <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
                 <li><a href="reports.php"><i class="fas fa-chart-pie"></i> Reports</a></li>
