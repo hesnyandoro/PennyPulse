@@ -190,7 +190,344 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(ucwords(strtolower($page_title))); ?> - Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
+    <style>
+        .container {
+            width: 80%;
+            max-width: 80%;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        body.dark .page-title {
+            color: #f3f4f6;
+        }
+        
+        .page-title::before {
+            content: '';
+            width: 4px;
+            height: 36px;
+            background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+            border-radius: 2px;
+        }
+        
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 4px solid #ef4444;
+            color: #dc2626;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .error-message::before {
+            content: '\f06a';
+            font-family: 'Font Awesome 5 Free';
+            font-weight: 900;
+            font-size: 18px;
+        }
+        
+        body.dark .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+        
+        #expense-form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .expense-card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        
+        .expense-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        body.dark .expense-card {
+            background: #1f2937;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .expense-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        .main-fields-card {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .form-group:has(textarea),
+        .form-group:has(.checkbox-label),
+        .recurring-fields {
+            grid-column: 1 / -1;
+        }
+        
+        .form-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        body.dark .form-group label {
+            color: #d1d5db;
+        }
+        
+        .required {
+            color: #ef4444;
+            font-size: 16px;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group input[type="date"],
+        .form-group input[type="file"],
+        .form-group select,
+        .form-group textarea {
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 15px;
+            font-family: 'Roboto', sans-serif;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        
+        body.dark .form-group input,
+        body.dark .form-group select,
+        body.dark .form-group textarea {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f3f4f6;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: #9ca3af;
+        }
+        
+        body.dark .form-group input::placeholder,
+        body.dark .form-group textarea::placeholder {
+            color: #6b7280;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 500;
+            color: #374151;
+            cursor: pointer;
+            padding: 12px 0;
+        }
+        
+        body.dark .checkbox-label {
+            color: #d1d5db;
+        }
+        
+        .checkbox-label input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
+        
+        .recurring-fields {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            padding: 24px;
+            background: rgba(59, 130, 246, 0.03);
+            border-radius: 12px;
+            border: 2px solid #93c5fd;
+            margin-top: 8px;
+        }
+        
+        body.dark .recurring-fields {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: #3b82f6;
+        }
+        
+        .form-hint {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        
+        body.dark .form-hint {
+            color: #9ca3af;
+        }
+        
+        .receipt-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            border: 2px solid #93c5fd;
+        }
+        
+        body.dark .receipt-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-color: #3b82f6;
+        }
+        
+        .form-group input[type="file"] {
+            padding: 16px;
+            border: 2px solid #e5e7eb;
+            background: white;
+            cursor: pointer;
+        }
+        
+        .form-group input[type="file"]:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.03);
+        }
+        
+        body.dark .form-group input[type="file"] {
+            background: #374151;
+            border-color: #4b5563;
+        }
+        
+        body.dark .form-group input[type="file"]:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 16px;
+            padding-top: 8px;
+            justify-content: flex-end;
+        }
+        
+        .save-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+        }
+        
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+        }
+        
+        .save-btn:active {
+            transform: translateY(0);
+        }
+        
+        .cancel-btn {
+            padding: 12px 24px;
+            background: white;
+            color: #6b7280;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Roboto', sans-serif;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .cancel-btn:hover {
+            background: #f9fafb;
+            border-color: #d1d5db;
+            color: #374151;
+        }
+        
+        body.dark .cancel-btn {
+            background: #374151;
+            border-color: #4b5563;
+            color: #d1d5db;
+        }
+        
+        body.dark .cancel-btn:hover {
+            background: #4b5563;
+            border-color: #6b7280;
+            color: #f3f4f6;
+        }
+        
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .main-fields-card {
+                grid-template-columns: 1fr;
+            }
+            
+            .recurring-fields {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+            }
+            
+            .cancel-btn {
+                flex: 1;
+            }
+        }
+    </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <div class="app">
@@ -309,6 +646,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 <!-- Action Buttons -->
                 <div class="form-actions">
                     <button type="submit" class="save-btn" id="save-btn">
+                        <i class="fas fa-save"></i>
                         <span class="btn-text"><?php echo ($mode === 'edit') ? 'Update Expense' : 'Save Expense'; ?></span>
                         <span class="spinner" style="display: none;"><i class="fas fa-spinner fa-spin"></i></span>
                     </button>
@@ -327,7 +665,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             const box = document.getElementById('recurring-fields');
             if (!chk || !box) return;
             function sync() {
-                box.style.display = chk.checked ? 'block' : 'none';
+                box.style.display = chk.checked ? 'grid' : 'none';
             }
             chk.addEventListener('change', sync);
             sync();
