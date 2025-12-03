@@ -378,6 +378,127 @@ $remaining = $total_budget - $total_spent;
             font-weight: 600;
             border: 1px solid #dbeafe;
         }
+        
+        /* Dark Mode Styles */
+        body.dark .welcome-section {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .welcome-section h1 {
+            color: #f9fafb;
+        }
+        
+        body.dark .welcome-section p {
+            color: #9ca3af;
+        }
+        
+        body.dark .stat-card {
+            background: #1f2937;
+            border-color: #374151;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .stat-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+        
+        body.dark .stat-card h3 {
+            color: #9ca3af;
+        }
+        
+        body.dark .stat-card p {
+            color: #f9fafb;
+        }
+        
+        body.dark .budget-overview {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .budget-overview h2 {
+            color: #f9fafb;
+        }
+        
+        body.dark .budget-overview li {
+            background: #111827;
+            border-left-color: #3b82f6;
+        }
+        
+        body.dark .budget-overview li:hover {
+            background: #1f2937;
+        }
+        
+        body.dark .budget-overview li.warning {
+            background: #292524;
+            border-left-color: #f59e0b;
+        }
+        
+        body.dark .budget-overview li.warning:hover {
+            background: #1c1917;
+        }
+        
+        body.dark .budget-overview li.danger {
+            background: #1e1b1b;
+            border-left-color: #ef4444;
+        }
+        
+        body.dark .budget-overview li.danger:hover {
+            background: #18181b;
+        }
+        
+        body.dark .budget-overview li strong {
+            color: #f9fafb;
+        }
+        
+        body.dark .progress-bar {
+            background: #374151;
+        }
+        
+        body.dark .status {
+            color: #9ca3af;
+        }
+        
+        body.dark .expenses-table {
+            background: #1f2937;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        body.dark .expenses-table h2 {
+            color: #f9fafb;
+        }
+        
+        body.dark .expenses-table thead {
+            background: linear-gradient(135deg, #111827, #1f2937);
+        }
+        
+        body.dark .expenses-table th {
+            color: #9ca3af;
+            border-bottom-color: #374151;
+        }
+        
+        body.dark .expenses-table tbody tr {
+            border-bottom-color: #374151;
+        }
+        
+        body.dark .expenses-table tbody tr:hover {
+            background: #111827;
+        }
+        
+        body.dark .expenses-table td {
+            color: #d1d5db;
+        }
+        
+        body.dark .expenses-table td:first-child,
+        body.dark .expenses-table td:nth-child(4) {
+            color: #f9fafb;
+        }
+        
+        body.dark .category-badge {
+            background: #1e3a5f;
+            color: #60a5fa;
+            border-color: #1e40af;
+        }
     </style>
 </head>
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
