@@ -103,14 +103,12 @@ if ($filter_type === 'All' || $filter_type === 'Recurring') {
         };
 
         // Fast-forward to the first occurrence on/after the view start date to avoid long loops
-        while ($current_date < $view_start_date) {
+        while ($current_date < $view_start_date && $current_date <= $rule_end_date) {
             $current_date->add($interval);
-            if ($current_date > $rule_end_date) {
-                break;
-            }
         }
 
-        while ($current_date <= $rule_end_date && $current_date <= $view_end_date) {
+        // Generate instances only within the view date range
+        while ($current_date >= $view_start_date && $current_date <= $rule_end_date && $current_date <= $view_end_date) {
             $date_key = $rule['id'] . '_' . $current_date->format('Y-m-d');
             if (!isset($exception_map[$date_key])) {
                 $instance_id = 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd');
