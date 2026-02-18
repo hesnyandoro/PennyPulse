@@ -23,6 +23,7 @@ $amount = '';
 $description = '';
 $category_id = '';
 $payment_method = '';
+$merchant = '';
 $date = date('Y-m-d'); // Default to today
 $receipt_path = null;
 $is_recurring = false;
@@ -60,6 +61,7 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
     $description = $expense['description'];
     $category_id = $expense['category_id'];
     $payment_method = $expense['payment_method'];
+    $merchant = $expense['merchant'] ?? '';
     $date = $expense['date'];
     $receipt_path = $expense['receipt_path'] ?? null;
     // Note: Recurring fields are not part of the 'edit' scope in your original code,
@@ -77,8 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_id = filter_input(INPUT_POST, 'expense_id', FILTER_VALIDATE_INT);
     $amount = $_POST['amount'] ?? '';
     $description = $_POST['description'] ?? '';
-    $category_id = $_POST['category_id'] ?? '';
+    $category_id = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
     $payment_method = $_POST['payment_method'] ?? '';
+    $merchant = $_POST['merchant'] ?? '';
     $date = $_POST['date'] ?? '';
     $is_recurring_checked = isset($_POST['is_recurring']);
     $frequency_post = $_POST['frequency'] ?? '';
@@ -116,9 +119,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($error_message)) {
         // If an ID was posted, we are in 'edit' mode (one-time only in this scope)
         if ($post_id && !$is_recurring_checked) {
-            $sql = "UPDATE expenses SET amount=?, description=?, category_id=?, payment_method=?, date=?, receipt_path=? WHERE id=? AND user_id=?";
+            $sql = "UPDATE expenses SET amount=?, description=?, category_id=?, payment_method=?, merchant=?, date=?, receipt_path=? WHERE id=? AND user_id=?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("dsissisi", $amount, $description, $category_id, $payment_method, $date, $receipt_path, $post_id, $user_id);
+            $stmt->bind_param("dsisssii", $amount, $description, $category_id, $payment_method, $merchant, $date, $receipt_path, $post_id, $user_id);
             if ($stmt->execute()) {
                 header('Location: dashboard.php?success=Expense updated!');
                 exit;
@@ -134,10 +137,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($freq_title, $allowed, true)) {
                 $error_message = 'Invalid frequency selected.';
             } else {
-                $sql = "INSERT INTO recurring_expenses (user_id, category_id, description, amount, payment_method, frequency, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $sql = "INSERT INTO recurring_expenses (user_id, category_id, description, amount, payment_method, merchant, frequency, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
                 $end = !empty($recurring_end_date) ? $recurring_end_date : null;
-                $stmt->bind_param("iisdssss", $user_id, $category_id, $description, $amount, $payment_method, $freq_title, $date, $end);
+                $stmt->bind_param("iisdsssss", $user_id, $category_id, $description, $amount, $payment_method, $merchant, $freq_title, $date, $end);
 
                 if ($stmt->execute()) {
                     header('Location: view_expenses.php?success=Recurring+expense+created');
@@ -149,9 +152,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Otherwise, add a one-time expense
         else {
-            $sql = "INSERT INTO expenses (user_id, amount, description, category_id, payment_method, date, receipt_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO expenses (user_id, amount, description, category_id, payment_method, merchant, date, receipt_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("idssiss", $user_id, $amount, $description, $category_id, $payment_method, $date, $receipt_path);
+            $stmt->bind_param("idssssss", $user_id, $amount, $description, $category_id, $payment_method, $merchant, $date, $receipt_path);
 
             if ($stmt->execute()) {
                 header('Location: dashboard.php?success=Expense+saved');
@@ -592,6 +595,11 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="merchant">Merchant</label>
+                        <input type="text" name="merchant" id="merchant" placeholder="Enter merchant name" value="<?php echo htmlspecialchars($merchant); ?>">
                     </div>
                     
                     <div class="form-group">

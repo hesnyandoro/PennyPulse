@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // --- Use Prepared Statement for UPDATE ---
     $sql = "UPDATE expenses SET amount=?, date=?, description=?, category_id=?, payment_method=?, merchant=? WHERE id=? AND user_id=?";
     $update_stmt = $conn->prepare($sql);
-    $update_stmt->bind_param("dssisiii", $amount, $date, $description, $category_id, $payment_method, $merchant, $expense_id, $user_id);
+    $update_stmt->bind_param("dssisii", $amount, $date, $description, $category_id, $payment_method, $merchant, $expense_id, $user_id);
     
     if ($update_stmt->execute()) {
         header('Location: view_expenses.php');

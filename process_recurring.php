@@ -52,18 +52,19 @@ function process_recurring_expenses($user_id) {
 
             // 2. INSERT: If no expense exists (fetch() returns null), create it
             if ($result->fetch_assoc() === null) {
-                $insert_query = "INSERT INTO expenses (user_id, category_id, amount, payment_method, description, date, recurring_expense_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $insert_query = "INSERT INTO expenses (user_id, category_id, amount, payment_method, merchant, description, date, recurring_expense_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 $insert_stmt = $conn->prepare($insert_query);
                 if (!$insert_stmt) {
                     error_log("Prepare failed: (" . $conn->errno . ") " . $conn->error);
                     continue; // Move to the next iteration
                 }
                 $insert_stmt->bind_param(
-                    'iidsssi',
+                    'iidssssi',
                     $user_id,
                     $rule['category_id'],
                     $rule['amount'],
                     $rule['payment_method'],
+                    $rule['merchant'],
                     $rule['description'],
                     $date_to_check,
                     $rule['id']
