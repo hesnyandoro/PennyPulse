@@ -878,7 +878,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
     <div class="app">
         <!-- Navbar -->
         <nav class="navbar">
-            <div class="logo">Expense Tracker</div>
+            <div class="logo">PennyPulse</div>
             <ul class="nav-links">
                 <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>

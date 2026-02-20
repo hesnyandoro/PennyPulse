@@ -28,7 +28,7 @@ if (isset($_SESSION['user_id'])) {
 <body class="<?php echo htmlspecialchars($settings['theme'] ?? 'light'); ?>">
     <div class="app">
         <nav class="navbar">
-            <div class="logo">Expense Tracker</div>
+            <div class="logo">PennyPulse</div>
             <div class="user-profile">
                 <?php if (isset($_SESSION['user_id']) && $user) { ?>
                     <span class="avatar" data-username="<?php echo htmlspecialchars($user['username'] ?? 'Guest'); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0] ?? 'U')); ?></span>
@@ -45,7 +45,7 @@ if (isset($_SESSION['user_id'])) {
         </nav>
 
         <div class="hero-section">
-            <h1>Welcome to Expense Tracker!</h1>
+            <h1>Welcome to PennyPulse!</h1>
             <p class="tagline">Take Control of Your Finances Today</p>
             <?php if (isset($_SESSION['user_id'])) { ?>
                 <a href="dashboard.php" class="cta-btn">Go to Dashboard</a> 

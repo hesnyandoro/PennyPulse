@@ -99,7 +99,7 @@ $conn->close();
 <body class="<?php echo htmlspecialchars(getUserTheme($conn, $_SESSION['user_id'])['theme']); ?>">
     <div class="app">
         <nav class="navbar">
-            <div class="logo">Expense Tracker</div>
+            <div class="logo">PennyPulse</div>
             <div class="user-profile">
                 <a href="dashboard.php" class="btn">Dashboard</a>
                 <a href="logout.php" class="btn logout-btn">Logout</a>

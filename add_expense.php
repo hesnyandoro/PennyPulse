@@ -535,7 +535,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 <body class="<?php echo htmlspecialchars($settings['theme']); ?>">
     <div class="app">
         <nav class="navbar">
-            <div class="logo">Expense Tracker</div>
+            <div class="logo">PennyPulse</div>
             <ul class="nav-links">
                 <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
