@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($post_id && !$is_recurring_checked) {
             $sql = "UPDATE expenses SET amount=?, description=?, category_id=?, payment_method=?, merchant=?, date=?, receipt_path=? WHERE id=? AND user_id=?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("dsisssii", $amount, $description, $category_id, $payment_method, $merchant, $date, $receipt_path, $post_id, $user_id);
+            $stmt->bind_param("dsissssii", $amount, $description, $category_id, $payment_method, $merchant, $date, $receipt_path, $post_id, $user_id);
             if ($stmt->execute()) {
                 header('Location: dashboard.php?success=Expense updated!');
                 exit;
