@@ -1,7 +1,10 @@
 <?php
 require_once 'config.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: auth.php?form=login');
     exit;
@@ -9,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $recurring_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-$instance_date = filter_input(INPUT_GET, 'date', FILTER_SANITIZE_STRING);
+$instance_date = htmlspecialchars(trim(filter_input(INPUT_GET, 'date') ?? ''), ENT_QUOTES, 'UTF-8');
 
 if (!$recurring_id || !$instance_date) {
     header('Location: view_expenses.php?error=invalid_parameters');
