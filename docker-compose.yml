@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+
+  # Web Application (PHP + Apache)
+  
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production  # Use 'production' or 'production-alpine'
+    container_name: expense-tracker-web
+    ports:
+      - "8080:80"
+      - "8443:443"
+    environment:
+      - APP_ENV=development
+      - LOG_TO_STDOUT=true
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=expense_tracker
+      - DB_USER=expense_user
+      - DB_PASSWORD=secure_password_123
+    volumes:
+      - ./:/var/www/html
+      - ./uploads:/var/www/html/uploads
+      - ./logs:/var/www/html/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  
+  # Database (MySQL)
+  
+  db:
+    image: mysql:8.0
+    container_name: expense-tracker-db
+    environment:
+      MYSQL_DATABASE: expense_tracker
+      MYSQL_USER: expense_user
+      MYSQL_PASSWORD: secure_password_123
+      MYSQL_ROOT_PASSWORD: root_password_123
+      MYSQL_INITDB_SKIP_TZINFO: 1
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  
+  # Optional: PhpMyAdmin for Database Management
+  
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: expense-tracker-phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_USER: expense_user
+      PMA_PASSWORD: secure_password_123
+      PMA_PORT: 3306
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    networks:
+      - expense-network
+    restart: unless-stopped
+
+  
+  # Optional: Redis for Session/Cache Management
+  
+  redis:
+    image: redis:7-alpine
+    container_name: expense-tracker-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+
+  # Optional: Mailhog for Email Testing
+  
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: expense-tracker-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - expense-network
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  expense-network:
+    driver: bridge

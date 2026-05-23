@@ -1,0 +1,86 @@
+# Docker ignore file - excludes files from being copied into Docker image
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.editorconfig
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Development dependencies
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# PHP dependencies (if using Composer, these are installed in Docker)
+vendor/
+composer.lock
+
+# Build artifacts
+dist/
+build/
+*.o
+*.so
+
+# Testing
+.phpunit.result.cache
+coverage/
+.coverage
+test-reports/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+temp/
+
+# Local development logs (we create fresh ones in container)
+logs/
+*.log
+
+# Cache
+.cache/
+*.cache
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Documentation (optional - include if docs are needed in production)
+*.md
+!README.md
+
+# GitHub
+.github/
+CODEOWNERS
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker build context (prevent recursion)
+Dockerfile
+Dockerfile.*
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+Dockerrun.aws.json
+
+# Local development
+docker/
+docker-compose.override.yml

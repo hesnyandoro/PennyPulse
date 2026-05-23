@@ -1285,10 +1285,10 @@ if (empty($insights)) {
         trendChart = new Chart(trendCtx, {
             type: 'line',
             data: {
-                labels: <?php echo json_encode($trend_labels); ?>,
+                labels: <?php echo json_encode($trend_labels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>,
                 datasets: [{
                     label: 'Daily Spending',
-                    data: <?php echo json_encode($trend_data); ?>,
+                    data: <?php echo json_encode($trend_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>,
                     borderColor: colors.primary,
                     backgroundColor: colors.background,
                     fill: true,
@@ -1339,7 +1339,7 @@ if (empty($insights)) {
                         ticks: {
                             color: colors.text,
                             font: { size: 11 },
-                            callback: (value) => `KES ${value}`
+                            callback: (value) => 'KES ' + value
                         }
                     }
                 }
@@ -1366,9 +1366,9 @@ if (empty($insights)) {
         categoryChart = new Chart(categoryCtx, {
             type: 'doughnut',
             data: {
-                labels: <?php echo json_encode(array_keys($current_metrics['category_breakdown'])); ?>,
+                labels: <?php echo json_encode(array_keys($current_metrics['category_breakdown']), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>,
                 datasets: [{
-                    data: <?php echo json_encode(array_values($current_metrics['category_breakdown'])); ?>,
+                    data: <?php echo json_encode(array_values($current_metrics['category_breakdown']), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>,
                     backgroundColor: colors.categoryColors,
                     borderWidth: 2,
                     borderColor: isDarkMode() ? '#1f2937' : '#ffffff'
@@ -1441,73 +1441,96 @@ if (empty($insights)) {
         }
         
         // Export functions
-        function exportToPDF() {
-            window.print();
-        }
-        
-        function exportToCSV() {
-            // Prepare comprehensive CSV data with all filtered expenses
-            let csv = 'EXPENSE REPORT\n';
-            csv += 'Period: <?php echo $time_period; ?>\n';
-            csv += 'Date Range: <?php echo $start_date; ?> to <?php echo $end_date; ?>\n';
-            csv += 'Generated: ' + new Date().toLocaleString() + '\n\n';
-            
-            // Summary Section
-            csv += 'SUMMARY\n';
-            csv += 'Total Spending,<?php echo $current_metrics['total']; ?>\n';
-            csv += 'Average Daily Spending,<?php echo $avg_daily; ?>\n';
-            csv += 'Total Transactions,<?php echo $current_metrics['transaction_count']; ?>\n';
-            csv += 'Budget Utilization,<?php echo $overall_utilization; ?>%\n\n';
-            
-            // Detailed Expenses
-            csv += 'DETAILED EXPENSES\n';
-            csv += 'Date,Category,Amount,Payment Method,Description\n';
-            <?php foreach ($current_expenses as $expense): ?>
-            csv += '<?php echo $expense['date']; ?>,';
-            csv += '<?php echo addslashes($category_map[$expense['category']] ?? 'Uncategorized'); ?>,';
-            csv += '<?php echo $expense['amount']; ?>,';
-            csv += '<?php echo addslashes($expense['payment_method'] ?? 'N/A'); ?>,';
-            csv += '<?php echo addslashes($expense['description'] ?? ''); ?>\n';
-            <?php endforeach; ?>
-            
-            csv += '\n';
-            
-            // Category Breakdown
-            csv += 'CATEGORY BREAKDOWN\n';
-            csv += 'Category,Amount,Percentage\n';
-            <?php 
-            $total = $current_metrics['total'];
-            foreach ($current_metrics['category_breakdown'] as $category => $amount): 
-                $percentage = $total > 0 ? ($amount / $total) * 100 : 0;
-            ?>
-            csv += '<?php echo addslashes($category); ?>,';
-            csv += '<?php echo $amount; ?>,';
-            csv += '<?php echo number_format($percentage, 2); ?>%\n';
-            <?php endforeach; ?>
-            
-            csv += '\n';
-            
-            // Budget Performance
-            csv += 'BUDGET PERFORMANCE\n';
-            csv += 'Category,Spent,Budget,Remaining,Utilization,Status\n';
-            <?php foreach ($budget_status as $category => $status): ?>
-            csv += '<?php echo addslashes($category); ?>,';
-            csv += '<?php echo $status['spent']; ?>,';
-            csv += '<?php echo $status['budget']; ?>,';
-            csv += '<?php echo $status['remaining']; ?>,';
-            csv += '<?php echo number_format($status['utilization'], 2); ?>%,';
-            csv += '<?php echo ucfirst($status['status']); ?>\n';
-            <?php endforeach; ?>
-            
-            // Download CSV
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'expense-report-<?php echo $time_period; ?>-' + new Date().toISOString().split('T')[0] + '.csv';
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
+function exportToPDF() {
+    window.print();
+}
+
+function exportToCSV() {
+    const reportMeta = {
+        period: <?php echo json_encode($time_period, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+        startDate: <?php echo json_encode($start_date, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+        endDate: <?php echo json_encode($end_date, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+        totalSpending: <?php echo json_encode($current_metrics['total']); ?>,
+        avgDaily: <?php echo json_encode($avg_daily); ?>,
+        totalTransactions: <?php echo json_encode($current_metrics['transaction_count']); ?>,
+        budgetUtilization: <?php echo json_encode($overall_utilization ?? 0); ?>
+    };
+
+    const expenses = <?php echo json_encode(
+        array_map(function($e) use ($category_map) {
+            return [
+                'date'           => $e['date'],
+                'category'       => $category_map[$e['category']] ?? 'Uncategorized',
+                'amount'         => $e['amount'],
+                'payment_method' => $e['payment_method'] ?? 'N/A',
+                'description'    => $e['description'] ?? ''
+            ];
+        }, $current_expenses),
+        JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+    ); ?>;
+
+    const categoryBreakdown = <?php echo json_encode(
+        array_map(function($amount) use ($current_metrics) {
+            return [
+                'amount'     => $amount,
+                'percentage' => $current_metrics['total'] > 0
+                    ? round(($amount / $current_metrics['total']) * 100, 2)
+                    : 0
+            ];
+        }, $current_metrics['category_breakdown']),
+        JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+    ); ?>;
+
+    const budgetPerformance = <?php echo json_encode(
+        array_map(function($status) {
+            return [
+                'spent'       => $status['spent'],
+                'budget'      => $status['budget'],
+                'remaining'   => $status['remaining'],
+                'utilization' => round($status['utilization'], 2),
+                'status'      => ucfirst($status['status'])
+            ];
+        }, $budget_status),
+        JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+    ); ?>;
+
+    let csv = 'EXPENSE REPORT\n';
+    csv += 'Period: ' + reportMeta.period + '\n';
+    csv += 'Date Range: ' + reportMeta.startDate + ' to ' + reportMeta.endDate + '\n';
+    csv += 'Generated: ' + new Date().toLocaleString() + '\n\n';
+
+    csv += 'SUMMARY\n';
+    csv += 'Total Spending,' + reportMeta.totalSpending + '\n';
+    csv += 'Average Daily Spending,' + reportMeta.avgDaily + '\n';
+    csv += 'Total Transactions,' + reportMeta.totalTransactions + '\n';
+    csv += 'Budget Utilization,' + reportMeta.budgetUtilization + '%\n\n';
+
+    csv += 'DETAILED EXPENSES\n';
+    csv += 'Date,Category,Amount,Payment Method,Description\n';
+    expenses.forEach(e => {
+        csv += [e.date, e.category, e.amount, e.payment_method, '"' + e.description.replace(/"/g, '""') + '"'].join(',') + '\n';
+    });
+
+    csv += '\nCATEGORY BREAKDOWN\n';
+    csv += 'Category,Amount,Percentage\n';
+    Object.entries(categoryBreakdown).forEach(([category, data]) => {
+        csv += category + ',' + data.amount + ',' + data.percentage + '%\n';
+    });
+
+    csv += '\nBUDGET PERFORMANCE\n';
+    csv += 'Category,Spent,Budget,Remaining,Utilization,Status\n';
+    Object.entries(budgetPerformance).forEach(([category, data]) => {
+        csv += category + ',' + data.spent + ',' + data.budget + ',' + data.remaining + ',' + data.utilization + '%,' + data.status + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'expense-report-' + reportMeta.period + '-' + new Date().toISOString().split('T')[0] + '.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
     </script>
 </body>
 </html>

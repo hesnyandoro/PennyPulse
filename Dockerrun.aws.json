@@ -1,0 +1,13 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "904233131614.dkr.ecr.us-east-1.amazonaws.com/expense-app:latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 80,
+      "HostPort": 80
+    }
+  ]
+}

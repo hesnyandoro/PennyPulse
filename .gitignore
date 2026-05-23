@@ -1,0 +1,29 @@
+# Credentials
+.env
+.env.local
+.env.*.local
+
+# User data
+uploads/receipts/
+
+# Local development
+Thera/
+*.code-workspace
+.qodo/
+
+# Logs & cache
+*.log
+.cache/
+
+# Local IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AWS (optional - exclude if using GitHub Actions instead)
+.ebextensions/
