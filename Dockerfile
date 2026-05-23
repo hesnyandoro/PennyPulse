@@ -1,4 +1,7 @@
-FROM php:8.2-fpm-alpine AS production-alpine
+FROM php:8.2.x-fpm-alpine AS production-alpine
+
+#Update packages to patch security vulnerabilities
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
 ENV APP_ENV=production \
     LOG_TO_STDOUT=true

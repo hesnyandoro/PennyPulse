@@ -79,7 +79,6 @@ Dockerfile.*
 .dockerignore
 docker-compose.yml
 docker-compose.*.yml
-Dockerrun.aws.json
 
 # Local development
 docker/
