@@ -185,3 +185,18 @@ CREATE TABLE `users` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-05-18 18:18:47
+
+-- Insert default categories
+INSERT IGNORE INTO categories (user_id, name) VALUES
+    (NULL, 'Food & Dining'),
+    (NULL, 'Transportation'),
+    (NULL, 'Housing'),
+    (NULL, 'Utilities'),
+    (NULL, 'Healthcare'),
+    (NULL, 'Entertainment'),
+    (NULL, 'Shopping'),
+    (NULL, 'Education'),
+    (NULL, 'Travel'),
+    (NULL, 'Savings'),
+    (NULL, 'Personal Care'),
+    (NULL, 'Other');
