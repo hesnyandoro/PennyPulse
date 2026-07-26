@@ -276,6 +276,108 @@ body.dark {
     opacity: 0.8;
 }
 
+.notification-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.notification-toggle {
+    background: rgba(255,255,255,0.16);
+    border: none;
+    color: var(--neutral);
+    border-radius: 999px;
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+}
+
+.notification-badge {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 280px;
+    background: var(--neutral);
+    color: #1f2937;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    display: none;
+    z-index: 200;
+    overflow: hidden;
+}
+
+.notification-dropdown.open {
+    display: block;
+}
+
+body.dark .notification-dropdown {
+    background: #111827;
+    color: var(--dark-text);
+}
+
+.notification-header {
+    padding: 12px 14px;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.notification-list {
+    list-style: none;
+    margin: 0;
+    padding: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.notification-item {
+    padding: 10px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    background: rgba(59,130,246,0.08);
+}
+
+.notification-item.unread {
+    border-left: 3px solid #3b82f6;
+}
+
+.notification-message {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.notification-meta {
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.notification-empty {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
 /* Dashboard */
 .dashboard {
     padding: 30px;

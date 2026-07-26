@@ -32,6 +32,7 @@ if (isset($_SESSION['user_id'])) {
             <div class="user-profile">
                 <?php if (isset($_SESSION['user_id']) && $user) { ?>
                     <span class="avatar" data-username="<?php echo htmlspecialchars($user['username'] ?? 'Guest'); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0] ?? 'U')); ?></span>
+                    <?php include 'includes/notifications_nav.php'; ?>
                     <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo ($settings['theme'] ?? 'light') === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
                         <i class="fas <?php echo ($settings['theme'] ?? 'light') === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
                     </button>
@@ -79,5 +80,6 @@ if (isset($_SESSION['user_id'])) {
     </div>
 
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script src="js/notifications.js?v=<?php echo filemtime('js/notifications.js'); ?>"></script>
 </body>
 </html>
