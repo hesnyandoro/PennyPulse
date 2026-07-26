@@ -40,10 +40,48 @@ The system is organized around the following functional areas:
 - Reporting and Export: view financial summaries and export data.
 - File Handling: upload and store receipts for expense records.
 
-## 4. Database Design
+## 4. Frontend Design
+The frontend is a server-rendered web interface built with PHP pages and shared UI fragments.
+
+### Frontend Components
+- Presentation pages such as login, dashboard, expense views, reports, and settings.
+- Shared layout and styling through HTML, CSS, and JavaScript.
+- Interactive client-side behavior for theme switching, form handling, and dynamic updates.
+
+### Frontend Technologies
+- HTML5 for page structure
+- CSS3 for styling and responsive layout
+- JavaScript for client-side interaction
+- PHP templates and embedded markup for server-rendered pages
+
+## 5. Backend Design
+The backend is implemented as a set of PHP scripts and API endpoints that process user requests, enforce business rules, and communicate with the database.
+
+### Backend Responsibilities
+- Session management and authentication
+- CRUD operations for expenses, recurring expenses, categories, budgets, and settings
+- Business logic for recurring transaction processing and exception handling
+- File upload handling for receipts
+- API endpoints for supporting dynamic features and integrations
+
+### Backend Technologies and Tools
+- PHP for server-side processing
+- MySQL for relational data storage
+- mysqli for database connectivity
+- Composer-style project structure support, though the app is primarily script-based
+- Docker support for containerized deployment
+
+## 6. Languages and Tools Used
+- Languages: PHP, HTML, CSS, JavaScript, SQL
+- Database: MySQL
+- Server Environment: Apache/PHP-compatible web server
+- Containerization: Docker and Docker Compose
+- Development Support: VS Code, Git, and local PHP development server
+
+## 7. Database Design
 The database design uses a relational model to support one-to-many and many-to-one relationships between users, categories, expenses, recurring plans, budgets, and settings.
 
-### 4.1 Conceptual Data Model
+### 7.1 Conceptual Data Model
 The conceptual model identifies the main business entities and their relationships:
 
 - User: owns account information and all personal financial data.
@@ -54,7 +92,7 @@ The conceptual model identifies the main business entities and their relationshi
 - Budget: defines a spending limit for a category within a month.
 - User Settings: stores interface and notification preferences.
 
-### 4.2 Logical Data Model
+### 7.2 Logical Data Model
 The logical model defines the main entities and attributes used by the application.
 
 - Users: id, first_name, last_name, email, username, password, phone
@@ -65,7 +103,7 @@ The logical model defines the main entities and attributes used by the applicati
 - Budgets: id, user_id, category_id, month, budget_amount
 - User Settings: user_id, theme, language, email_notifications, in_app_notifications
 
-### 4.3 Entity Relationship Diagram
+### 7.3 Entity Relationship Diagram
 ```mermaid
 erDiagram
     USERS ||--o{ CATEGORIES : owns
@@ -82,7 +120,7 @@ erDiagram
     RECURRING_EXPENSES ||--o{ RECURRING_EXPENSE_EXCEPTIONS : has
 ```
 
-### 4.4 Physical Data Model
+### 7.4 Physical Data Model
 The physical model is implemented in MySQL using the following conventions:
 
 - Primary keys use auto-incrementing integer identifiers.
@@ -92,7 +130,7 @@ The physical model is implemented in MySQL using the following conventions:
 - Unique constraints ensure a user cannot create duplicate category names for the same context.
 - Cascading deletes are used to remove dependent records when a parent user is deleted.
 
-### 4.5 Physical Table Notes
+### 7.5 Physical Table Notes
 - The users table stores account credentials and profile details.
 - The categories table supports both user-specific categories and shared default categories.
 - The expenses table records the actual transaction history.
@@ -100,7 +138,7 @@ The physical model is implemented in MySQL using the following conventions:
 - The budgets table captures spending thresholds by month and category.
 - The user_settings table stores personalization preferences.
 
-## 5. Data Flow Overview
+## 8. Data Flow Overview
 A typical expense lifecycle works as follows:
 
 1. A user logs in and accesses the dashboard.
@@ -109,6 +147,19 @@ A typical expense lifecycle works as follows:
 4. If the expense is configured as recurring, the rule is stored in the recurring_expenses table and later processed into actual expense entries.
 5. Reports and budgets are generated from the stored transaction data.
 
-## 6. Summary
+### User Flow Diagram
+```mermaid
+flowchart TD
+    A[Open App] --> B[Login or Register]
+    B --> C[Dashboard]
+    C --> D[Add or View Expenses]
+    D --> E[Set Budget or Preferences]
+    D --> F[Create Recurring Expense]
+    E --> G[View Reports]
+    F --> G
+    G --> H[Export or Manage Data]
+```
+
+## 9. Summary
 This system design provides a scalable and maintainable structure for an expense tracking application. Its modular PHP architecture, relational database design, and clear separation of user interface, business logic, and data storage make it suitable for future extension such as additional analytics, mobile support, or API-based integrations.
 
