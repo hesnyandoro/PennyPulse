@@ -1,4 +1,43 @@
 <?php
+function validateDateFilter($value): ?string
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    $date = DateTime::createFromFormat('!Y-m-d', $value);
+    if ($date && $date->format('Y-m-d') === $value) {
+        return $date->format('Y-m-d');
+    }
+
+    return null;
+}
+
+function validateAmountFilter($value): ?float
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    $amount = filter_var($value, FILTER_VALIDATE_FLOAT);
+    if ($amount === false) {
+        return null;
+    }
+
+    return (float)$amount;
+}
+
+function bindDynamicParams(mysqli_stmt $stmt, string $types, array $params): void
+{
+    $references = [];
+    foreach ($params as $key => $value) {
+        $references[$key] = &$params[$key];
+    }
+
+    array_unshift($references, $types);
+    call_user_func_array([$stmt, 'bind_param'], $references);
+}
+
 // Start output buffering
 ob_start();
 session_start();
@@ -42,11 +81,89 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
 $default_start = new DateTime('first day of this month');
 $default_end = new DateTime('last day of this month');
 
-// Parse and validate date filters
-$view_start_date = !empty($_GET['date_start']) ? new DateTime($_GET['date_start']) : clone $default_start;
-$view_end_date = !empty($_GET['date_end']) ? new DateTime($_GET['date_end']) : clone $default_end;
-$filter_category = $_GET['category'] ?? '';
-$filter_payment_method = $_GET['payment_method'] ?? '';
+// Parse and validate filter values from the URL query string
+$raw_date_from = $_GET['date_from'] ?? $_GET['date_start'] ?? '';
+$raw_date_to = $_GET['date_to'] ?? $_GET['date_end'] ?? '';
+$raw_amount_min = $_GET['amount_min'] ?? '';
+$raw_amount_max = $_GET['amount_max'] ?? '';
+$raw_category_id = $_GET['category_id'] ?? $_GET['category'] ?? '';
+$filter_preset = $_GET['preset'] ?? '';
+
+$filter_date_from = validateDateFilter($raw_date_from);
+$filter_date_to = validateDateFilter($raw_date_to);
+$filter_amount_min = validateAmountFilter($raw_amount_min);
+$filter_amount_max = validateAmountFilter($raw_amount_max);
+$filter_category = filter_var($raw_category_id, FILTER_VALIDATE_INT);
+if ($filter_category === false || $filter_category === null) {
+    $filter_category = null;
+}
+
+$view_start_date = clone $default_start;
+$view_end_date = clone $default_end;
+$selected_preset = '';
+
+if (!empty($filter_preset)) {
+    $selected_preset = $filter_preset;
+    $today = new DateTime('today');
+
+    switch ($filter_preset) {
+        case 'this_month':
+            $view_start_date = new DateTime('first day of this month');
+            $view_end_date = new DateTime('last day of this month');
+            break;
+        case 'last_30_days':
+            $view_start_date = (clone $today)->modify('-29 days');
+            $view_end_date = clone $today;
+            break;
+        case 'last_quarter':
+            $month = (int)$today->format('m');
+            $quarter = (int)ceil($month / 3);
+            $quarter_start_month = (($quarter - 1) * 3) + 1;
+            $view_start_date = new DateTime($today->format('Y') . '-' . str_pad($quarter_start_month, 2, '0', STR_PAD_LEFT) . '-01');
+            $view_end_date = clone $today;
+            break;
+        case 'ytd':
+            $view_start_date = new DateTime($today->format('Y') . '-01-01');
+            $view_end_date = clone $today;
+            break;
+        case 'custom':
+            if ($filter_date_from !== null) {
+                $view_start_date = new DateTime($filter_date_from);
+            }
+            if ($filter_date_to !== null) {
+                $view_end_date = new DateTime($filter_date_to);
+            }
+            break;
+        default:
+            if ($filter_date_from !== null) {
+                $view_start_date = new DateTime($filter_date_from);
+            }
+            if ($filter_date_to !== null) {
+                $view_end_date = new DateTime($filter_date_to);
+            }
+            break;
+    }
+} else {
+    if ($filter_date_from !== null) {
+        $view_start_date = new DateTime($filter_date_from);
+    }
+    if ($filter_date_to !== null) {
+        $view_end_date = new DateTime($filter_date_to);
+    }
+}
+
+if ($view_start_date > $view_end_date) {
+    $temp_date = $view_start_date;
+    $view_start_date = $view_end_date;
+    $view_end_date = $temp_date;
+}
+
+if ($filter_amount_min !== null && $filter_amount_max !== null && $filter_amount_min > $filter_amount_max) {
+    $filter_amount_min = null;
+    $filter_amount_max = null;
+}
+
+$filter_payment_method = trim((string)($_GET['payment_method'] ?? ''));
 $filter_type = $_GET['type'] ?? 'All';
 $sort = $_GET['sort'] ?? 'date';
 $order = $_GET['order'] ?? 'DESC';
@@ -110,13 +227,16 @@ if ($filter_type === 'All' || $filter_type === 'Recurring') {
         // Generate instances only within the view date range
         while ($current_date >= $view_start_date && $current_date <= $rule_end_date && $current_date <= $view_end_date) {
             $date_key = $rule['id'] . '_' . $current_date->format('Y-m-d');
-            if (!isset($exception_map[$date_key])) {
+            $amount = (float)$rule['amount'];
+            if (!isset($exception_map[$date_key])
+                && ($filter_amount_min === null || $amount >= $filter_amount_min)
+                && ($filter_amount_max === null || $amount <= $filter_amount_max)) {
                 $instance_id = 'rec_' . $rule['id'] . '_' . $current_date->format('Ymd');
                 $generated_recurring[$instance_id] = [
                     'id' => $instance_id,
                     'rule_id' => $rule['id'],
                     'date' => $current_date->format('Y-m-d'),
-                    'amount' => (float)$rule['amount'],
+                    'amount' => $amount,
                     'category_name' => $rule['category_name'] ?? 'N/A',
                     'description' => $rule['description'],
                     'payment_method' => $rule['payment_method'],
@@ -136,23 +256,48 @@ if ($filter_type === 'All' || $filter_type === 'One-Time') {
     $one_time_query = "SELECT e.*, c.name AS category_name 
                        FROM expenses e 
                        LEFT JOIN categories c ON e.category_id = c.id 
-                       WHERE e.user_id = ? AND e.date BETWEEN ? AND ?";
-    $params = [$user_id, $view_start_date->format('Y-m-d'), $view_end_date->format('Y-m-d')];
-    $types = 'iss';
+                       WHERE e.user_id = ?";
+    $params = [$user_id];
+    $types = 'i';
+    $conditions = [];
 
-    if ($filter_category) {
-        $one_time_query .= " AND e.category_id = ?";
+    if ($filter_date_from !== null) {
+        $conditions[] = 'e.date >= ?';
+        $params[] = $filter_date_from;
+        $types .= 's';
+    }
+    if ($filter_date_to !== null) {
+        $conditions[] = 'e.date <= ?';
+        $params[] = $filter_date_to;
+        $types .= 's';
+    }
+    if ($filter_amount_min !== null) {
+        $conditions[] = 'e.amount >= ?';
+        $params[] = $filter_amount_min;
+        $types .= 'd';
+    }
+    if ($filter_amount_max !== null) {
+        $conditions[] = 'e.amount <= ?';
+        $params[] = $filter_amount_max;
+        $types .= 'd';
+    }
+    if ($filter_category !== null) {
+        $conditions[] = 'e.category_id = ?';
         $params[] = $filter_category;
         $types .= 'i';
     }
-    if ($filter_payment_method) {
-        $one_time_query .= " AND e.payment_method = ?";
+    if (!empty($filter_payment_method)) {
+        $conditions[] = 'e.payment_method = ?';
         $params[] = $filter_payment_method;
         $types .= 's';
     }
 
+    if (!empty($conditions)) {
+        $one_time_query .= ' AND ' . implode(' AND ', $conditions);
+    }
+
     $stmt = $conn->prepare($one_time_query);
-    $stmt->bind_param($types, ...$params);
+    bindDynamicParams($stmt, $types, $params);
     $stmt->execute();
     $one_time_expenses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -654,6 +799,13 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
             </div>
             
             <form method="GET" style="width: 100%;">
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+                    <button type="submit" name="preset" value="this_month" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 999px; background: <?php echo $selected_preset === 'this_month' ? '#3b82f6' : 'white'; ?>; color: <?php echo $selected_preset === 'this_month' ? 'white' : '#374151'; ?>; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Roboto', sans-serif;">This Month</button>
+                    <button type="submit" name="preset" value="last_30_days" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 999px; background: <?php echo $selected_preset === 'last_30_days' ? '#3b82f6' : 'white'; ?>; color: <?php echo $selected_preset === 'last_30_days' ? 'white' : '#374151'; ?>; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Roboto', sans-serif;">Last 30 Days</button>
+                    <button type="submit" name="preset" value="last_quarter" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 999px; background: <?php echo $selected_preset === 'last_quarter' ? '#3b82f6' : 'white'; ?>; color: <?php echo $selected_preset === 'last_quarter' ? 'white' : '#374151'; ?>; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Roboto', sans-serif;">Last Quarter</button>
+                    <button type="submit" name="preset" value="ytd" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 999px; background: <?php echo $selected_preset === 'ytd' ? '#3b82f6' : 'white'; ?>; color: <?php echo $selected_preset === 'ytd' ? 'white' : '#374151'; ?>; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Roboto', sans-serif;">YTD</button>
+                    <button type="submit" name="preset" value="custom" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 999px; background: <?php echo $selected_preset === 'custom' ? '#3b82f6' : 'white'; ?>; color: <?php echo $selected_preset === 'custom' ? 'white' : '#374151'; ?>; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Roboto', sans-serif;">Custom</button>
+                </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px;">
                     <div style="min-width: 0;">
                         <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
@@ -694,7 +846,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
                             <i class="fas fa-folder" style="color: #3b82f6; font-size: 11px;"></i>
                             Category
                         </label>
-                        <select name="category" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        <select name="category_id" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                             <option value="">All Categories</option>
                             <?php $categories->data_seek(0); while ($cat = $categories->fetch_assoc()) echo "<option value='{$cat['id']}' " . ($filter_category == $cat['id'] ? 'selected' : '') . ">{$cat['name']}</option>"; ?>
                         </select>
@@ -714,16 +866,30 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
                     <div style="min-width: 0;">
                         <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
                             <i class="fas fa-calendar-alt" style="color: #3b82f6; font-size: 11px;"></i>
-                            Start Date
+                            Date From
                         </label>
-                        <input type="date" name="date_start" value="<?php echo htmlspecialchars($view_start_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        <input type="date" name="date_from" value="<?php echo htmlspecialchars($filter_date_from ?? $view_start_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                     </div>
                     <div style="min-width: 0;">
                         <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
                             <i class="fas fa-calendar-check" style="color: #3b82f6; font-size: 11px;"></i>
-                            End Date
+                            Date To
                         </label>
-                        <input type="date" name="date_end" value="<?php echo htmlspecialchars($view_end_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        <input type="date" name="date_to" value="<?php echo htmlspecialchars($filter_date_to ?? $view_end_date->format('Y-m-d')); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-money-bill-wave" style="color: #3b82f6; font-size: 11px;"></i>
+                            Min Amount
+                        </label>
+                        <input type="number" name="amount_min" step="0.01" min="0" value="<?php echo htmlspecialchars($filter_amount_min !== null ? (string)$filter_amount_min : ''); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                    </div>
+                    <div style="min-width: 0;">
+                        <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: #374151; font-weight: 600; font-family: 'Roboto', sans-serif;">
+                            <i class="fas fa-money-bill-wave" style="color: #3b82f6; font-size: 11px;"></i>
+                            Max Amount
+                        </label>
+                        <input type="number" name="amount_max" step="0.01" min="0" value="<?php echo htmlspecialchars($filter_amount_max !== null ? (string)$filter_amount_max : ''); ?>" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px; background: white; color: #374151; font-family: 'Roboto', sans-serif; transition: all 0.2s; cursor: pointer; box-sizing: border-box;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                     </div>
                     <div style="min-width: 0;">
                         <button type="submit" style="width: 100%; padding: 11px 20px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); font-family: 'Roboto', sans-serif; box-sizing: border-box; white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(59, 130, 246, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)';">
