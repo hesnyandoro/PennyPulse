@@ -54,6 +54,11 @@ CREATE TABLE IF NOT EXISTS expenses (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
     FOREIGN KEY (recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (date);
+CREATE INDEX IF NOT EXISTS idx_expenses_amount ON expenses (amount);
+CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses (category_id);
 
 -- Create recurring_expenses table
 CREATE TABLE IF NOT EXISTS recurring_expenses (

@@ -31,6 +31,10 @@ try {
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     )");
 
+    $conn->query("CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (date)");
+    $conn->query("CREATE INDEX IF NOT EXISTS idx_expenses_amount ON expenses (amount)");
+    $conn->query("CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses (category_id)");
+
     // Create budgets table
     $conn->query("CREATE TABLE IF NOT EXISTS budgets (
         id INT AUTO_INCREMENT PRIMARY KEY,

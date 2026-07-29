@@ -8,7 +8,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production  # Use 'production' or 'production-alpine'
+      target: production-alpine
     container_name: expense-tracker-web
     ports:
       - "8080:80"
@@ -54,7 +54,7 @@ services:
       - "3306:3306"
     volumes:
       - db-data:/var/lib/mysql
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./create_tables.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     networks:
       - expense-network
     healthcheck:
