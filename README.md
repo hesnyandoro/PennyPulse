@@ -150,7 +150,7 @@ A typical expense lifecycle works as follows:
 ### User Flow Diagram
 ```mermaid
 flowchart TD
-    A[Open App] --> B[Login or Register]
+    A[Open App] --> B[Login or Register as new user]
     B --> C[Dashboard]
     C --> D[Add or View Expenses]
     D --> E[Set Budget or Preferences]
