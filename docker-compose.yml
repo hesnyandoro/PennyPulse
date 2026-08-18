@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   # Web Application (PHP + Apache)
@@ -20,7 +18,7 @@ services:
       - DB_PORT=3306
       - DB_NAME=expense_tracker
       - DB_USER=expense_user
-      - DB_PASSWORD=secure_password_123
+      - DB_PASS=secure_password_123
     volumes:
       - ./:/var/www/html
       - ./uploads:/var/www/html/uploads
