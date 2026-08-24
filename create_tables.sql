@@ -1,4 +1,8 @@
 -- SQL Script to create all database tables for PennyPulse Expense Tracker
+-- Fixed: table creation order corrected so recurring_expenses exists before
+-- expenses references it via foreign key (previous version had expenses
+-- created first, which caused the CREATE TABLE to fail and silently skipped
+-- every table defined after it, including user_settings and notifications).
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
@@ -35,6 +39,30 @@ INSERT IGNORE INTO categories (user_id, name) VALUES
     (NULL, 'Personal Care'),
     (NULL, 'Other');
 
+-- Create recurring_expenses table
+-- (moved above `expenses` — expenses.recurring_expense_id has a foreign key
+-- into this table, so it must exist first)
+CREATE TABLE IF NOT EXISTS recurring_expenses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    category_id INT,
+    amount DECIMAL(10,2) NOT NULL,
+    description VARCHAR(255),
+    frequency ENUM('daily','weekly','monthly','yearly') NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    last_processed DATE,
+    next_due_date DATE,
+    is_active TINYINT(1) DEFAULT 1,
+    merchant VARCHAR(255) DEFAULT NULL,
+    payment_method ENUM('cash','credit_card','debit_card','mobile_payment','bank_transfer','mpesa') DEFAULT NULL,
+    receipt_path VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+);
+
 -- Create expenses table
 CREATE TABLE IF NOT EXISTS expenses (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -56,31 +84,9 @@ CREATE TABLE IF NOT EXISTS expenses (
     FOREIGN KEY (recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (date);
-CREATE INDEX IF NOT EXISTS idx_expenses_amount ON expenses (amount);
-CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON expenses (category_id);
-
--- Create recurring_expenses table
-CREATE TABLE IF NOT EXISTS recurring_expenses (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    category_id INT,
-    amount DECIMAL(10,2) NOT NULL,
-    description VARCHAR(255),
-    frequency ENUM('daily','weekly','monthly','yearly') NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE,
-    last_processed DATE,
-    next_due_date DATE,
-    is_active TINYINT(1) DEFAULT 1,
-    merchant VARCHAR(255) DEFAULT NULL,
-    payment_method ENUM('cash','credit_card','debit_card','mobile_payment','bank_transfer','mpesa') DEFAULT NULL,
-    receipt_path VARCHAR(255) DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-);
+CREATE INDEX idx_expenses_date ON expenses (date);
+CREATE INDEX idx_expenses_amount ON expenses (amount);
+CREATE INDEX idx_expenses_category_id ON expenses (category_id);
 
 -- Create recurring_expense_exceptions table
 CREATE TABLE IF NOT EXISTS recurring_expense_exceptions (
