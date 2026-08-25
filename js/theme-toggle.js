@@ -2,16 +2,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.getElementById('theme-toggle');
     const body = document.body;
 
-    // Apply saved theme from localStorage if available
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        body.className = body.className.replace(/\b(light|dark)\b/g, savedTheme);
+    window.applyTheme = (theme, persist = true) => {
+        body.className = body.className.replace(/\b(light|dark)\b/g, theme);
+        if (persist) {
+            localStorage.setItem('theme', theme);
+        }
+
         if (themeToggle) {
             const icon = themeToggle.querySelector('i');
             if (icon) {
-                icon.className = savedTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+                icon.className = theme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
             }
+            themeToggle.dataset.themeText = theme === 'light' ? 'Dark Mode' : 'Light Mode';
         }
+    };
+
+    // Apply saved theme from localStorage if available
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        window.applyTheme(savedTheme, false);
     }
 
     // Theme toggle functionality
@@ -19,14 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
         themeToggle.addEventListener('click', () => {
             const currentTheme = body.classList.contains('dark') ? 'dark' : 'light';
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            
-            body.className = body.className.replace(/\b(light|dark)\b/g, newTheme);
-            localStorage.setItem('theme', newTheme);
-            
-            const icon = themeToggle.querySelector('i');
-            if (icon) {
-                icon.className = newTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
-            }
+
+            window.applyTheme(newTheme);
             
             // Save theme preference to server
             fetch('css/api/update_theme.php', {
