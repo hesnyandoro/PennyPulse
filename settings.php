@@ -703,7 +703,13 @@ $settings['in_app_notifications'] = $settings['in_app_notifications'] ?? 0;
 
         document.getElementById('settingsForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            submitForm('settingsForm', 'update_settings.php', 'settingsMessage');
+            const selectedTheme = e.currentTarget.elements.theme.value;
+            submitForm('settingsForm', 'update_settings.php', 'settingsMessage').then(() => {
+                const message = document.getElementById('settingsMessage');
+                if (message.className === 'success' && typeof window.applyTheme === 'function') {
+                    window.applyTheme(selectedTheme);
+                }
+            });
         });
 
         document.getElementById('passwordForm').addEventListener('submit', (e) => {
