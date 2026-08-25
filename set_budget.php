@@ -880,7 +880,7 @@ unset($budget); //ensures the second loop can operate on the original, unmodifie
         <nav class="navbar">
             <div class="logo">PennyPulse</div>
             <ul class="nav-links">
-                <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
                 <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
                 <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
