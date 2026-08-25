@@ -82,6 +82,7 @@ $settings = getUserTheme($conn, $user_id);
         </ul>
         <div class="user-profile">
             <span class="avatar" data-username="<?php echo htmlspecialchars($user['username']); ?>"><?php echo htmlspecialchars(strtoupper($user['username'][0])); ?></span>
+            <?php include 'includes/notifications_nav.php'; ?>
             <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo $settings['theme'] === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
                 <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
             </button>
@@ -129,6 +130,7 @@ $settings = getUserTheme($conn, $user_id);
     </div>
     <?php include 'footer.html'; ?>
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script src="js/notifications.js?v=<?php echo filemtime('js/notifications.js'); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const currentPage = window.location.pathname.split('/').pop() || 'index.php';
