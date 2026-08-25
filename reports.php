@@ -60,6 +60,19 @@ while ($row = $result->fetch_assoc()) {
 $time_period = $_REQUEST['time_period'] ?? 'this_month';
 $comparison_period = $_REQUEST['comparison_period'] ?? 'last_month';
 $view_mode = $_REQUEST['view_mode'] ?? 'overview';
+$category_filter = filter_var($_REQUEST['category'] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$category_filter = $category_filter !== false && isset($category_map[$category_filter]) ? $category_filter : null;
+$payment_methods = ['cash', 'credit_card', 'debit_card', 'mobile_payment', 'bank_transfer', 'mpesa'];
+$payment_method_filter = in_array($_REQUEST['payment_method'] ?? '', $payment_methods, true) ? $_REQUEST['payment_method'] : '';
+$expense_types = ['all', 'one_time', 'recurring'];
+$expense_type_filter = in_array($_REQUEST['expense_type'] ?? 'all', $expense_types, true) ? $_REQUEST['expense_type'] : 'all';
+$merchant_filter = trim((string)($_REQUEST['merchant'] ?? ''));
+$merchant_filter = mb_substr($merchant_filter, 0, 255);
+$min_amount_filter = is_numeric($_REQUEST['min_amount'] ?? '') && (float)$_REQUEST['min_amount'] >= 0 ? (float)$_REQUEST['min_amount'] : null;
+$max_amount_filter = is_numeric($_REQUEST['max_amount'] ?? '') && (float)$_REQUEST['max_amount'] >= 0 ? (float)$_REQUEST['max_amount'] : null;
+if ($min_amount_filter !== null && $max_amount_filter !== null && $min_amount_filter > $max_amount_filter) {
+    [$min_amount_filter, $max_amount_filter] = [$max_amount_filter, $min_amount_filter];
+}
 
 // Helper function to get date range
 function getDateRange($period) {
@@ -90,20 +103,73 @@ function getDateRange($period) {
 list($start_date, $end_date) = getDateRange($time_period);
 list($comp_start_date, $comp_end_date) = getDateRange($comparison_period);
 
-// Fetch expenses for current period
-function fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map) {
+// Fetch expenses for a period, applying the same filters to both expense sources.
+function fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map, $filters) {
     $expenses = [];
-    $stmt = $conn->prepare("SELECT amount, category_id as category, date, payment_method, description FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?");
-    $stmt->bind_param("iss", $user_id, $start_date, $end_date);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $expenses[] = $row;
+    $base_conditions = [];
+    $base_params = [];
+    $base_types = '';
+
+    if ($filters['category'] !== null) {
+        $base_conditions[] = 'category_id = ?';
+        $base_params[] = $filters['category'];
+        $base_types .= 'i';
     }
-    
+    if ($filters['payment_method'] !== '') {
+        $base_conditions[] = 'payment_method = ?';
+        $base_params[] = $filters['payment_method'];
+        $base_types .= 's';
+    }
+    if ($filters['merchant'] !== '') {
+        $base_conditions[] = 'merchant LIKE ?';
+        $base_params[] = '%' . $filters['merchant'] . '%';
+        $base_types .= 's';
+    }
+    if ($filters['min_amount'] !== null) {
+        $base_conditions[] = 'amount >= ?';
+        $base_params[] = $filters['min_amount'];
+        $base_types .= 'd';
+    }
+    if ($filters['max_amount'] !== null) {
+        $base_conditions[] = 'amount <= ?';
+        $base_params[] = $filters['max_amount'];
+        $base_types .= 'd';
+    }
+
+    $bind_params = function ($stmt, $types, $params) {
+        if ($types !== '') {
+            $bind_values = array_merge([$types], $params);
+            $bind_references = [];
+            foreach ($bind_values as $key => &$value) {
+                $bind_references[$key] = &$value;
+            }
+            call_user_func_array([$stmt, 'bind_param'], $bind_references);
+        }
+    };
+
+    if ($filters['expense_type'] !== 'recurring') {
+        $conditions = array_merge(['user_id = ?', 'date BETWEEN ? AND ?'], $base_conditions);
+        $params = array_merge([$user_id, $start_date, $end_date], $base_params);
+        $types = 'iss' . $base_types;
+        $stmt = $conn->prepare('SELECT amount, category_id as category, date, payment_method, description FROM expenses WHERE ' . implode(' AND ', $conditions));
+        $bind_params($stmt, $types, $params);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $expenses[] = $row;
+        }
+    }
+
+    if ($filters['expense_type'] === 'one_time') {
+        return $expenses;
+    }
+
     // Handle recurring expenses
-    $stmt = $conn->prepare("SELECT amount, category_id as category, start_date, frequency, payment_method, description FROM recurring_expenses WHERE user_id = ? AND start_date <= ?");
-    $stmt->bind_param("is", $user_id, $end_date);
+    $conditions = array_merge(['user_id = ?', 'start_date <= ?', '(end_date IS NULL OR end_date >= ?)'], $base_conditions);
+    $params = array_merge([$user_id, $end_date, $start_date], $base_params);
+    $types = 'iss' . $base_types;
+    $stmt = $conn->prepare('SELECT amount, category_id as category, start_date, end_date, frequency, payment_method, merchant, description FROM recurring_expenses WHERE ' . implode(' AND ', $conditions));
+    $bind_params($stmt, $types, $params);
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -122,7 +188,8 @@ function fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map) {
         
         $interval = new DateInterval($interval_map[$frequency]);
         $period_start = new DateTime(max($row['start_date'], $start_date));
-        $period_end = new DateTime($end_date);
+        $period_end_date = min($end_date, $row['end_date'] ?? $end_date);
+        $period_end = new DateTime($period_end_date);
         $period_end->modify('+1 day');
         
         $period = new DatePeriod($period_start, $interval, $period_end);
@@ -144,8 +211,17 @@ function fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map) {
     return $expenses;
 }
 
-$current_expenses = fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map);
-$comparison_expenses = fetchExpenses($conn, $user_id, $comp_start_date, $comp_end_date, $category_map);
+$report_filters = [
+    'category' => $category_filter,
+    'payment_method' => $payment_method_filter,
+    'expense_type' => $expense_type_filter,
+    'merchant' => $merchant_filter,
+    'min_amount' => $min_amount_filter,
+    'max_amount' => $max_amount_filter
+];
+
+$current_expenses = fetchExpenses($conn, $user_id, $start_date, $end_date, $category_map, $report_filters);
+$comparison_expenses = fetchExpenses($conn, $user_id, $comp_start_date, $comp_end_date, $category_map, $report_filters);
 
 // Calculate metrics
 function calculateMetrics($expenses, $category_map, $budgets) {
@@ -1014,6 +1090,50 @@ if (empty($insights)) {
                             <option value="last_year" <?php echo $comparison_period === 'last_year' ? 'selected' : ''; ?>>Last Year</option>
                         </select>
                     </div>
+
+                    <div class="filter-group">
+                        <label for="category"><i class="fas fa-tag"></i> Category</label>
+                        <select id="category" name="category">
+                            <option value="">All Categories</option>
+                            <?php foreach ($category_map as $category_id => $category_name): ?>
+                                <option value="<?php echo (int)$category_id; ?>" <?php echo $category_filter === (int)$category_id ? 'selected' : ''; ?>><?php echo htmlspecialchars($category_name); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="payment_method"><i class="fas fa-credit-card"></i> Payment Method</label>
+                        <select id="payment_method" name="payment_method">
+                            <option value="">All Payment Methods</option>
+                            <?php foreach ($payment_methods as $payment_method): ?>
+                                <option value="<?php echo htmlspecialchars($payment_method); ?>" <?php echo $payment_method_filter === $payment_method ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $payment_method))); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="expense_type"><i class="fas fa-list"></i> Expense Type</label>
+                        <select id="expense_type" name="expense_type">
+                            <option value="all" <?php echo $expense_type_filter === 'all' ? 'selected' : ''; ?>>All Expenses</option>
+                            <option value="one_time" <?php echo $expense_type_filter === 'one_time' ? 'selected' : ''; ?>>One-Time</option>
+                            <option value="recurring" <?php echo $expense_type_filter === 'recurring' ? 'selected' : ''; ?>>Recurring</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="merchant"><i class="fas fa-store"></i> Merchant</label>
+                        <input type="search" id="merchant" name="merchant" value="<?php echo htmlspecialchars($merchant_filter); ?>" maxlength="255" placeholder="Search merchant">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="min_amount"><i class="fas fa-arrow-down"></i> Minimum Amount</label>
+                        <input type="number" id="min_amount" name="min_amount" value="<?php echo $min_amount_filter !== null ? htmlspecialchars((string)$min_amount_filter) : ''; ?>" min="0" step="0.01" placeholder="0.00">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="max_amount"><i class="fas fa-arrow-up"></i> Maximum Amount</label>
+                        <input type="number" id="max_amount" name="max_amount" value="<?php echo $max_amount_filter !== null ? htmlspecialchars((string)$max_amount_filter) : ''; ?>" min="0" step="0.01" placeholder="No limit">
+                    </div>
                 </div>
                 
                 <div class="filter-actions">
@@ -1455,7 +1575,13 @@ function exportToCSV() {
         totalSpending: <?php echo json_encode($current_metrics['total']); ?>,
         avgDaily: <?php echo json_encode($avg_daily); ?>,
         totalTransactions: <?php echo json_encode($current_metrics['transaction_count']); ?>,
-        budgetUtilization: <?php echo json_encode($overall_utilization ?? 0); ?>
+        budgetUtilization: <?php echo json_encode($overall_utilization ?? 0); ?>,
+        category: <?php echo json_encode($category_filter !== null ? ($category_map[$category_filter] ?? 'Unknown') : 'All'); ?>,
+        paymentMethod: <?php echo json_encode($payment_method_filter !== '' ? ucwords(str_replace('_', ' ', $payment_method_filter)) : 'All'); ?>,
+        expenseType: <?php echo json_encode(ucwords(str_replace('_', ' ', $expense_type_filter))); ?>,
+        merchant: <?php echo json_encode($merchant_filter !== '' ? $merchant_filter : 'All'); ?>,
+        minAmount: <?php echo json_encode($min_amount_filter !== null ? $min_amount_filter : 'No minimum'); ?>,
+        maxAmount: <?php echo json_encode($max_amount_filter !== null ? $max_amount_filter : 'No maximum'); ?>
     };
 
     const expenses = <?php echo json_encode(
@@ -1499,6 +1625,7 @@ function exportToCSV() {
     let csv = 'EXPENSE REPORT\n';
     csv += 'Period: ' + reportMeta.period + '\n';
     csv += 'Date Range: ' + reportMeta.startDate + ' to ' + reportMeta.endDate + '\n';
+    csv += 'Filters: Category=' + reportMeta.category + '; Payment Method=' + reportMeta.paymentMethod + '; Expense Type=' + reportMeta.expenseType + '; Merchant=' + reportMeta.merchant + '; Amount=' + reportMeta.minAmount + ' to ' + reportMeta.maxAmount + '\n';
     csv += 'Generated: ' + new Date().toLocaleString() + '\n\n';
 
     csv += 'SUMMARY\n';
