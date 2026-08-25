@@ -32,9 +32,9 @@ try {
         require_once __DIR__ . '/config.php';
         
         try {
-            // Attempt a simple query to verify DB connection
-            if (isset($pdo)) {
-                $result = $pdo->query('SELECT 1');
+            // Attempt a simple query to verify the application's mysqli connection.
+            if (isset($conn) && $conn instanceof mysqli) {
+                $result = $conn->query('SELECT 1');
                 $checks['database'] = true;
             } else {
                 $checks['database'] = false;

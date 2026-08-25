@@ -51,7 +51,7 @@ services:
       MYSQL_ROOT_PASSWORD: root_password_123
       MYSQL_INITDB_SKIP_TZINFO: 1
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - db-data:/var/lib/mysql
       - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro

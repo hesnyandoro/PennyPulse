@@ -29,10 +29,10 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 // Database connection
-$db_host = getenv('DB_HOST');
-$db_user = getenv('DB_USER');
-$db_pass = getenv('DB_PASS');
-$db_name = getenv('DB_NAME');
+$db_host = getenv('DB_HOST') ?: '127.0.0.1';
+$db_user = getenv('DB_USER') ?: 'expense_user';
+$db_pass = getenv('DB_PASSWORD') ?: (getenv('DB_PASS') ?: 'secure_password_123');
+$db_name = getenv('DB_NAME') ?: 'expense_tracker';
 
 $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 if ($conn->connect_error) {
