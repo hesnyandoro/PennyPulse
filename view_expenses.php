@@ -968,6 +968,7 @@ $payment_methods = $conn->query("SELECT DISTINCT payment_method FROM (
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
         <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script src="js/notifications.js?v=<?php echo filemtime('js/notifications.js'); ?>"></script>
         <script>
             document.addEventListener('DOMContentLoaded', () => {
                 const currentPage = window.location.pathname.split('/').pop() || 'index.php';

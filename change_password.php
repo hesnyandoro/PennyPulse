@@ -101,6 +101,7 @@ $conn->close();
         <nav class="navbar">
             <div class="logo">PennyPulse</div>
             <div class="user-profile">
+                <?php include 'includes/notifications_nav.php'; ?>
                 <a href="dashboard.php" class="btn">Dashboard</a>
                 <a href="logout.php" class="btn logout-btn">Logout</a>
             </div>
@@ -112,5 +113,6 @@ $conn->close();
         <?php include 'footer.html'; ?>
     </div>
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script src="js/notifications.js?v=<?php echo filemtime('js/notifications.js'); ?>"></script>
 </body>
 </html>

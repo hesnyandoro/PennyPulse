@@ -865,6 +865,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     </div>
 
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script src="js/notifications.js?v=<?php echo filemtime('js/notifications.js'); ?>"></script>
 
     <script>
         // Active nav link
