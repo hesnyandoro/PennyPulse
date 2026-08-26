@@ -1,6 +1,9 @@
 <?php
 require_once 'config.php';
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
 $active_tab = $_GET['form'] ?? 'register';
 $error = '';
 
@@ -29,21 +32,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!empty($errors)) {
             $error = implode('<br>', $errors);
         } else {
-            $stmt = $conn->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
-            $stmt->bind_param('ss', $username, $email);
-            $stmt->execute();
-            if ($stmt->get_result()->num_rows > 0) {
-                $error = 'Username or email already exists.';
-            } else {
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare('INSERT INTO users (first_name, last_name, email, username, password, phone) VALUES (?, ?, ?, ?, ?, ?)');
-                $stmt->bind_param('ssssss', $first_name, $last_name, $email, $username, $hashed_password, $phone);
-                if ($stmt->execute()) {
-                    header('Location: auth.php?form=login&registered=1');
-                    exit;
+            try {
+                $stmt = $conn->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+                $stmt->bind_param('ss', $username, $email);
+                $stmt->execute();
+                if ($stmt->get_result()->num_rows > 0) {
+                    $error = 'Username or email already exists.';
                 } else {
-                    $error = 'Registration failed. Please try again.';
+                    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                    $stmt = $conn->prepare('INSERT INTO users (first_name, last_name, email, username, password, phone) VALUES (?, ?, ?, ?, ?, ?)');
+                    $stmt->bind_param('ssssss', $first_name, $last_name, $email, $username, $hashed_password, $phone);
+                    if ($stmt->execute()) {
+                        header('Location: auth.php?form=login&registered=1');
+                        exit;
+                    } else {
+                        $error = 'Registration failed. Please try again.';
+                    }
                 }
+            } catch (mysqli_sql_exception $e) {
+                error_log('Registration failed: ' . $e->getMessage());
+                $error = 'Sorry, we are experiencing technical difficulties. Please try again later.';
             }
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'login') {
@@ -53,20 +61,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($username) || empty($password)) {
             $error = 'Please fill all fields.';
         } else {
-            $stmt = $conn->prepare('SELECT id, password FROM users WHERE username = ?');
-            $stmt->bind_param('s', $username);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                if (password_verify($password, $row['password'])) {
+            try {
+                $stmt = $conn->prepare('SELECT id, password, failed_login_attempts, locked_until FROM users WHERE username = ?');
+                $stmt->bind_param('s', $username);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+
+                if (!$row) {
+                    $error = 'Invalid credentials.';
+                } elseif ($row['locked_until'] !== null && strtotime($row['locked_until']) > time()) {
+                    $remaining = ceil((strtotime($row['locked_until']) - time()) / 60);
+                    $error = "Account locked due to too many failed attempts. Try again in {$remaining} minute(s).";
+                } elseif (password_verify($password, $row['password'])) {
+                    // Successful login — reset lockout state
+                    $reset = $conn->prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?');
+                    $reset->bind_param('i', $row['id']);
+                    $reset->execute();
+
                     $_SESSION['user_id'] = $row['id'];
                     header('Location: dashboard.php');
                     exit;
                 } else {
-                    $error = 'Invalid credentials.';
+                    // Failed login — increment counter
+                    $attempts = $row['failed_login_attempts'] + 1;
+
+                    if ($attempts >= MAX_LOGIN_ATTEMPTS) {
+                        $lockUntil = date('Y-m-d H:i:s', strtotime('+' . LOCKOUT_MINUTES . ' minutes'));
+                        $update = $conn->prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?');
+                        $update->bind_param('isi', $attempts, $lockUntil, $row['id']);
+                        $update->execute();
+                        $error = 'Too many failed attempts. Account locked for ' . LOCKOUT_MINUTES . ' minutes.';
+                    } else {
+                        $update = $conn->prepare('UPDATE users SET failed_login_attempts = ? WHERE id = ?');
+                        $update->bind_param('ii', $attempts, $row['id']);
+                        $update->execute();
+                        $error = 'Invalid credentials.';
+                    }
                 }
-            } else {
-                $error = 'Invalid credentials.';
+            } catch (mysqli_sql_exception $e) {
+                error_log('Login failed: ' . $e->getMessage());
+                $error = 'Sorry, we are experiencing technical difficulties. Please try again later.';
             }
         }
     }
