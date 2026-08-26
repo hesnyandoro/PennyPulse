@@ -65,7 +65,8 @@ $category_filter = $category_filter !== false && isset($category_map[$category_f
 $payment_methods = ['cash', 'credit_card', 'debit_card', 'mobile_payment', 'bank_transfer', 'mpesa'];
 $payment_method_filter = in_array($_REQUEST['payment_method'] ?? '', $payment_methods, true) ? $_REQUEST['payment_method'] : '';
 $expense_types = ['all', 'one_time', 'recurring'];
-$expense_type_filter = in_array($_REQUEST['expense_type'] ?? 'all', $expense_types, true) ? $_REQUEST['expense_type'] : 'all';
+$requested_expense_type = $_REQUEST['expense_type'] ?? 'all';
+$expense_type_filter = in_array($requested_expense_type, $expense_types, true) ? $requested_expense_type : 'all';
 $merchant_filter = trim((string)($_REQUEST['merchant'] ?? ''));
 $merchant_filter = mb_substr($merchant_filter, 0, 255);
 $min_amount_filter = is_numeric($_REQUEST['min_amount'] ?? '') && (float)$_REQUEST['min_amount'] >= 0 ? (float)$_REQUEST['min_amount'] : null;
