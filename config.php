@@ -31,7 +31,7 @@ error_reporting(E_ALL);
 // Database connection
 $db_host = getenv('DB_HOST') ?:'host.docker.internal';
 $db_user = getenv('DB_USER') ?:'expense_user';
-$db_pass = getenv('DB_PASS') ?:'@40268863bN845#';
+$db_pass = getenv('DB_PASSWORD') ?:'@40268863bN845#';
 $db_name = getenv('DB_NAME') ?:'expense_tracker';
 
 $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
