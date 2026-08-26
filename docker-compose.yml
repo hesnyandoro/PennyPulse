@@ -1,14 +1,11 @@
-version: '3.8'
-
 services:
 
   # Web Application (PHP + Apache)
-  
   web:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production  # Use 'production' or 'production-alpine'
+      target: production-alpine
     container_name: expense-tracker-web
     ports:
       - "8080:80"
@@ -20,7 +17,7 @@ services:
       - DB_PORT=3306
       - DB_NAME=expense_tracker
       - DB_USER=expense_user
-      - DB_PASSWORD=secure_password_123
+      - DB_PASS=secure_password_123
     volumes:
       - ./:/var/www/html
       - ./uploads:/var/www/html/uploads
@@ -31,16 +28,14 @@ services:
     networks:
       - expense-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health.php"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health.php"]  # ✅ Fixed
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
     restart: unless-stopped
 
-  
   # Database (MySQL)
-  
   db:
     image: mysql:8.0
     container_name: expense-tracker-db
@@ -51,10 +46,10 @@ services:
       MYSQL_ROOT_PASSWORD: root_password_123
       MYSQL_INITDB_SKIP_TZINFO: 1
     ports:
-      - "3307:3306"
+      - "3307:3306"    # ✅ Fixed — changed from 3306 to 3307
     volumes:
       - db-data:/var/lib/mysql
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./create_tables.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     networks:
       - expense-network
     healthcheck:
@@ -63,11 +58,9 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
-  
-  # Optional: PhpMyAdmin for Database Management
-  
+  # PhpMyAdmin for Database Management
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: expense-tracker-phpmyadmin
@@ -84,9 +77,7 @@ services:
       - expense-network
     restart: unless-stopped
 
-  
-  # Optional: Redis for Session/Cache Management
-  
+  # Redis for Session/Cache Management
   redis:
     image: redis:7-alpine
     container_name: expense-tracker-redis
@@ -103,9 +94,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-
-  # Optional: Mailhog for Email Testing
-  
+  # Mailhog for Email Testing
   mailhog:
     image: mailhog/mailhog:latest
     container_name: expense-tracker-mailhog

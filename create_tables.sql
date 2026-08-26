@@ -1,4 +1,8 @@
 -- SQL Script to create all database tables for PennyPulse Expense Tracker
+-- Fixed: table creation order corrected so recurring_expenses exists before
+-- expenses references it via foreign key (previous version had expenses
+-- created first, which caused the CREATE TABLE to fail and silently skipped
+-- every table defined after it, including user_settings and notifications).
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
@@ -35,27 +39,9 @@ INSERT IGNORE INTO categories (user_id, name) VALUES
     (NULL, 'Personal Care'),
     (NULL, 'Other');
 
--- Create expenses table
-CREATE TABLE IF NOT EXISTS expenses (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    category_id INT NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    description TEXT,
-    date DATE NOT NULL,
-    merchant VARCHAR(255) DEFAULT NULL,
-    payment_method ENUM('cash','credit_card','debit_card','mobile_payment','bank_transfer','mpesa') DEFAULT NULL,
-    is_recurring TINYINT(1) DEFAULT 0,
-    receipt_path VARCHAR(255) DEFAULT NULL,
-    recurring_end_date DATE DEFAULT NULL,
-    type VARCHAR(50) DEFAULT NULL,
-    recurring_expense_id INT DEFAULT NULL,
-    is_override TINYINT(1) DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
-    FOREIGN KEY (recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE SET NULL
-
 -- Create recurring_expenses table
+-- (moved above `expenses` — expenses.recurring_expense_id has a foreign key
+-- into this table, so it must exist first)
 CREATE TABLE IF NOT EXISTS recurring_expenses (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -76,6 +62,31 @@ CREATE TABLE IF NOT EXISTS recurring_expenses (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
+
+-- Create expenses table
+CREATE TABLE IF NOT EXISTS expenses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    category_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    description TEXT,
+    date DATE NOT NULL,
+    merchant VARCHAR(255) DEFAULT NULL,
+    payment_method ENUM('cash','credit_card','debit_card','mobile_payment','bank_transfer','mpesa') DEFAULT NULL,
+    is_recurring TINYINT(1) DEFAULT 0,
+    receipt_path VARCHAR(255) DEFAULT NULL,
+    recurring_end_date DATE DEFAULT NULL,
+    type VARCHAR(50) DEFAULT NULL,
+    recurring_expense_id INT DEFAULT NULL,
+    is_override TINYINT(1) DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+    FOREIGN KEY (recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_expenses_date ON expenses (date);
+CREATE INDEX idx_expenses_amount ON expenses (amount);
+CREATE INDEX idx_expenses_category_id ON expenses (category_id);
 
 -- Create recurring_expense_exceptions table
 CREATE TABLE IF NOT EXISTS recurring_expense_exceptions (
@@ -110,5 +121,16 @@ CREATE TABLE IF NOT EXISTS user_settings (
     in_app_notifications TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    message VARCHAR(255) NOT NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    type VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

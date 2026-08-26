@@ -487,7 +487,7 @@ $settings['in_app_notifications'] = $settings['in_app_notifications'] ?? 0;
     <nav class="navbar">
             <div class="logo">PennyPulse</div>
             <ul class="nav-links">
-                <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="add_expense.php"><i class="fas fa-plus"></i> Manage Expenses</a></li>
                 <li><a href="view_expenses.php"><i class="fas fa-list"></i> View Expenses</a></li>
                 <li><a href="set_budget.php"><i class="fas fa-wallet"></i> Budgets</a></li>
@@ -498,6 +498,7 @@ $settings['in_app_notifications'] = $settings['in_app_notifications'] ?? 0;
                 <span class="avatar" data-username="<?php echo htmlspecialchars($user['username']); ?>">
                     <?php echo isset($user['username'][0]) ? htmlspecialchars(strtoupper($user['username'][0])) : ''; ?>
                 </span>
+                <?php include 'includes/notifications_nav.php'; ?>
                 <button id="theme-toggle" class="theme-toggle" data-theme-text="<?php echo $settings['theme'] === 'light' ? 'Dark Mode' : 'Light Mode'; ?>">
                     <i class="fas <?php echo $settings['theme'] === 'light' ? 'fa-moon' : 'fa-sun'; ?>"></i>
                 </button>
@@ -649,6 +650,7 @@ $settings['in_app_notifications'] = $settings['in_app_notifications'] ?? 0;
     </div>
 
     <script src="js/theme-toggle.js?v=<?php echo filemtime('js/theme-toggle.js'); ?>"></script>
+    <script src="js/notifications.js?v=<?php echo filemtime('js/notifications.js'); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const currentPage = window.location.pathname.split('/').pop() || 'index.php';
@@ -701,7 +703,13 @@ $settings['in_app_notifications'] = $settings['in_app_notifications'] ?? 0;
 
         document.getElementById('settingsForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            submitForm('settingsForm', 'update_settings.php', 'settingsMessage');
+            const selectedTheme = e.currentTarget.elements.theme.value;
+            submitForm('settingsForm', 'update_settings.php', 'settingsMessage').then(() => {
+                const message = document.getElementById('settingsMessage');
+                if (message.className === 'success' && typeof window.applyTheme === 'function') {
+                    window.applyTheme(selectedTheme);
+                }
+            });
         });
 
         document.getElementById('passwordForm').addEventListener('submit', (e) => {
