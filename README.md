@@ -1,4 +1,4 @@
-# Expense Tracker System Design
+# PennyPulse System Design
 
 ## 1. Overview
 PennyPulse is a PHP-based expense tracking web application that allows users to register, authenticate, create and manage expenses, define recurring expenses, set budgets, and generate reports. The system is designed as a modular web application with a relational database backend and file-based storage for receipt uploads.
