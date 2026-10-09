@@ -39,6 +39,8 @@ The system is organized around the following functional areas:
 - Budgets and Settings: define budget limits per category and manage user preferences.
 - Reporting and Export: view financial summaries and export data.
 - File Handling: upload and store receipts for expense records.
+- Session management
+
 
 ## 4. Frontend Design
 The frontend is a server-rendered web interface built with PHP pages and shared UI fragments.
